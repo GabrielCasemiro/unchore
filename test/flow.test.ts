@@ -1,0 +1,259 @@
+import assert from 'node:assert/strict';
+import { chmodSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { after, before, test } from 'node:test';
+
+// --- fake uazapi -----------------------------------------------------------
+const sent: Array<Record<string, unknown>> = [];
+const T0 = Date.now() - 60_000;
+const uaz = createServer((req, res) => {
+  let body = '';
+  req.on('data', (d) => (body += d));
+  req.on('end', () => {
+    const json = body ? JSON.parse(body) : {};
+    res.setHeader('content-type', 'application/json');
+    if (req.headers.token !== 'test-token') return res.writeHead(401).end('{}');
+    if (req.url === '/chat/find') {
+      return res.end(JSON.stringify({ chats: [
+        { wa_chatid: '5511999990000@s.whatsapp.net', wa_name: 'Maria', wa_isGroup: false, wa_lastMsgTimestamp: T0 + 3000 },
+        { wa_chatid: '5511888880000@s.whatsapp.net', wa_name: 'Loja', wa_isGroup: false, wa_lastMsgTimestamp: T0 - 10 * 86_400_000 },
+      ] }));
+    }
+    if (req.url === '/message/find' && json.chatid === '5511999990000@s.whatsapp.net') {
+      return res.end(JSON.stringify({ messages: [
+        { messageid: 'm3', chatid: json.chatid, senderName: 'Maria', fromMe: false, messageType: 'ExtendedTextMessage', messageTimestamp: T0 + 3000, text: 'Quanto custa o kit?' },
+        { messageid: 'm2', chatid: json.chatid, senderName: 'Maria', fromMe: false, messageType: 'Conversation', messageTimestamp: T0 + 2000, text: 'Seu pedido foi enviado' },
+        { messageid: 'm1', chatid: json.chatid, fromMe: true, messageType: 'Conversation', messageTimestamp: T0 + 1000, text: 'Oi Maria!' },
+        { messageid: 'old', chatid: json.chatid, fromMe: false, messageType: 'Conversation', messageTimestamp: T0 - 3 * 86_400_000, text: 'old?' },
+      ] }));
+    }
+    if (req.url === '/send/text') {
+      sent.push(json);
+      return res.end('{"ok":true}');
+    }
+    res.end(JSON.stringify({ messages: [], chats: [] }));
+  });
+});
+
+type App = { fetch: (r: Request) => Promise<Response> | Response };
+let app: App;
+let home: string;
+
+const api = async (path: string, method = 'GET', body?: unknown) => {
+  const res = await app.fetch(new Request(`http://localhost/api${path}`, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }));
+  const data = await res.json();
+  assert.ok(res.ok, `${method} ${path} → ${res.status} ${JSON.stringify(data)}`);
+  return data;
+};
+
+const waitFor = async (fn: () => Promise<boolean>, ms = 5000) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await fn()) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('timed out');
+};
+
+before(async () => {
+  await new Promise<void>((r) => uaz.listen(0, '127.0.0.1', r));
+  home = mkdtempSync(join(tmpdir(), 'unchore-test-'));
+  const fake = join(import.meta.dirname, 'fake-claude.mjs');
+  chmodSync(fake, 0o755);
+  Object.assign(process.env, {
+    UNCHORE_ENV_FILE: join(home, 'no.env'),
+    UNCHORE_HOME: home,
+    CLAUDE_BIN: fake,
+    FAKE_CLAUDE_LOG: join(home, 'claude.log'),
+    UAZAPI_URL: `http://127.0.0.1:${(uaz.address() as AddressInfo).port}`,
+    UAZAPI_TOKEN: 'test-token',
+    UNCHORE_NO_SCHEDULER: '1',
+    UNCHORE_NO_TERMINAL: '1',
+  });
+  const { seedSkills } = await import('../server/skills.ts');
+  const { initConnectors } = await import('../server/connectors/index.ts');
+  const { createApp } = await import('../server/app.ts');
+  seedSkills();
+  initConnectors();
+  app = createApp();
+});
+
+after(() => uaz.close());
+
+test('claude runs get no built-in tools, and only the MCP servers they need', async () => {
+  const { claudeArgs } = await import('../server/claude.ts');
+  const plain = claudeArgs({ prompt: 'x' });
+  assert.deepEqual(plain.slice(plain.indexOf('--tools'), plain.indexOf('--tools') + 2), ['--tools', '']);
+  assert.ok(plain.includes('--strict-mcp-config'));
+  const gmail = claudeArgs({ prompt: 'x', mcpServers: ['claude_ai_Gmail'] });
+  assert.equal(gmail[gmail.indexOf('--allowedTools') + 1], 'mcp__claude_ai_Gmail');
+  assert.equal(gmail[gmail.indexOf('--permission-mode') + 1], 'dontAsk');
+  const chrome = claudeArgs({ prompt: 'x', chrome: true });
+  assert.ok(chrome.includes('--chrome'));
+  assert.equal(chrome[chrome.indexOf('--allowedTools') + 1], 'mcp__claude-in-chrome');
+});
+
+test('full flow: WhatsApp sync → task → plan → approve sends the reply', async () => {
+  const conn = await api('/connectors');
+  assert.equal(conn.find((c: { id: string }) => c.id === 'whatsapp').enabled, true, 'WhatsApp is on when credentials exist');
+
+  const sync = await api('/connectors/whatsapp/sync', 'POST');
+  assert.equal(sync.added, 3, 'three messages from the last day; the old one is ignored');
+
+  const tasks = await api('/tasks');
+  assert.equal(tasks.length, 1, 'only the question became a task');
+  const task = tasks[0];
+  assert.equal(task.status, 'suggested');
+  assert.equal(task.source, 'whatsapp');
+  assert.equal(task.requester, 'Maria');
+
+  const again = await api('/connectors/whatsapp/sync', 'POST');
+  assert.equal(again.added, 0, 'cursor prevents duplicates');
+
+  await api(`/tasks/${task.id}/accept`, 'POST');
+  await waitFor(async () => (await api(`/tasks/${task.id}`)).task.status === 'plan_ready');
+  const detail = await api(`/tasks/${task.id}`);
+  assert.equal(detail.task.plan.reply, 'O kit custa R$ 49,90.');
+  assert.equal(detail.thread.length, 3);
+
+  const approved = await api(`/tasks/${task.id}/approve`, 'POST', { sendReply: true });
+  assert.match(approved.detail, /Sent on WhatsApp/);
+  assert.deepEqual(sent, [{ number: '5511999990000@s.whatsapp.net', text: 'O kit custa R$ 49,90.', replyid: 'm3' }]);
+  assert.equal((await api(`/tasks/${task.id}`)).task.status, 'done');
+});
+
+test('"Not a task" adds a rule to the extractor skill, and undo restores it', async () => {
+  const { run } = await import('../server/db.ts');
+  const id = Number(run(
+    "INSERT INTO tasks (title, source, thread_id, requester, status) VALUES ('Track order', 'whatsapp', 'x@s.whatsapp.net', 'Loja', 'suggested')",
+  ).lastInsertRowid);
+  const before = await api('/skills/what-counts-as-a-task');
+  const r = await api(`/tasks/${id}/dismiss`, 'POST', { reason: 'Automated / notification' });
+  assert.equal(r.rule, 'Order status notifications are not tasks');
+  const file = readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8');
+  assert.match(file, /## Learned from feedback\n- Order status notifications are not tasks/);
+  const afterSkill = await api('/skills/what-counts-as-a-task');
+  assert.equal(afterSkill.skill.version, before.skill.version + 1);
+
+  await api(`/tasks/${id}/undo-dismiss`, 'POST', { previousBody: r.previousBody });
+  assert.doesNotMatch(readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8'), /Order status/);
+  assert.equal((await api(`/tasks/${id}`)).task.status, 'suggested');
+});
+
+test('Inbox agent chat can add a rule', async () => {
+  const chat = await api('/agent', 'POST', { message: 'Stop creating tasks from promo groups' });
+  assert.equal(chat.at(-1).role, 'agent');
+  assert.equal(chat.at(-1).rule, 'Messages in promo groups are not tasks');
+  assert.match(readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8'), /promo groups are not tasks/);
+});
+
+test('request changes re-plans and can update the skill', async () => {
+  const task = (await api('/tasks?done=1')).find((t: { requester: string }) => t.requester === 'Maria');
+  await api(`/tasks/${task.id}/changes`, 'POST', { feedback: 'Always add the delivery time', updateSkill: true });
+  assert.match(readFileSync(join(home, 'skills', 'writing-replies.md'), 'utf8'), /- Always add the delivery time/);
+  await waitFor(async () => (await api(`/tasks/${task.id}`)).task.status === 'plan_ready');
+});
+
+test('take over writes TASK.md with the conversation and plan', async () => {
+  const task = (await api('/tasks?done=1')).find((t: { requester: string }) => t.requester === 'Maria');
+  const r = await api(`/tasks/${task.id}/takeover`, 'POST', { tool: 'claude-code' });
+  assert.ok(existsSync(r.file));
+  const md = readFileSync(r.file, 'utf8');
+  assert.match(md, /Quanto custa o kit\?/);
+  assert.match(md, /## Suggested reply\nO kit custa/);
+  assert.match(r.command, /^cd '.*' && claude "Read TASK.md/);
+  await api(`/tasks/${task.id}/done`, 'POST', { note: 'done in Claude Code' });
+  assert.equal((await api(`/tasks/${task.id}`)).task.status, 'done');
+});
+
+test('skills can be edited and keep a version history', async () => {
+  const s = await api('/skills/scheduling');
+  const saved = await api('/skills/scheduling', 'PUT', { name: 'Scheduling', when: s.skill.when, body: '# Scheduling\n\n- 45 minute meetings\n' });
+  assert.equal(saved.version, s.skill.version + 1);
+  assert.equal((await api('/skills/scheduling')).history.length, 2);
+});
+
+test('API rejects requests from other websites', async () => {
+  const res = await app.fetch(new Request('http://localhost/api/tasks', { headers: { origin: 'https://evil.example' } }));
+  assert.equal(res.status, 403);
+});
+
+test('tasks get readable uids and the API accepts them', async () => {
+  const tasks = await api('/tasks?done=1');
+  const maria = tasks.find((t: { requester: string }) => t.requester === 'Maria');
+  assert.match(maria.uid, /^answer-quanto-custa-o-kit-[a-z0-9]{4}$/);
+  assert.equal((await api(`/tasks/${maria.uid}`)).task.id, maria.id);
+});
+
+test('a reply is never silently skipped: empty or [placeholder] replies cannot be sent', async () => {
+  const { run } = await import('../server/db.ts');
+  const id = Number(run(
+    `INSERT INTO tasks (uid, title, source, thread_id, requester, status, plan) VALUES ('no-reply-test-aaaa', 'No reply', 'whatsapp', '5511999990000@s.whatsapp.net', 'Maria', 'plan_ready', ?)`,
+    JSON.stringify({ summary: 's', steps: [], draft: { title: 'd', body: 'Oi [nome]' }, reply: null, skill_slug: null, needs_from_me: 'Your name' }),
+  ).lastInsertRowid);
+  const sendEmpty = await app.fetch(new Request('http://localhost/api/tasks/no-reply-test-aaaa/approve', { method: 'POST', body: JSON.stringify({ sendReply: true }) }));
+  assert.equal(sendEmpty.status, 400);
+  assert.match((await sendEmpty.json()).error, /Write the reply/);
+  const placeholder = await app.fetch(new Request('http://localhost/api/tasks/no-reply-test-aaaa/approve', { method: 'POST', body: JSON.stringify({ sendReply: true, reply: 'Oi [nome]' }) }));
+  assert.equal(placeholder.status, 400);
+  assert.equal((await api(`/tasks/${id}`)).task.status, 'plan_ready', 'a failed send keeps the task open');
+
+  const before = sent.length;
+  await api('/tasks/no-reply-test-aaaa/approve', 'POST', { sendReply: true, reply: 'Oi Maria, tudo certo!' });
+  assert.equal(sent.length, before + 1);
+  assert.equal(sent.at(-1)!.text, 'Oi Maria, tudo certo!');
+});
+
+test('done tasks can be reopened and taken over', async () => {
+  await api('/tasks/no-reply-test-aaaa/reopen', 'POST');
+  assert.equal((await api('/tasks/no-reply-test-aaaa')).task.status, 'plan_ready');
+  await api('/tasks/no-reply-test-aaaa/done', 'POST', {});
+  const r = await api('/tasks/no-reply-test-aaaa/takeover', 'POST', { tool: 'codex' });
+  assert.match(r.file, /no-reply-test-aaaa\/TASK\.md$/);
+  assert.match(r.command, /&& codex "Read TASK.md/);
+  assert.match(readFileSync(r.file, 'utf8'), /unchore done no-reply-test-aaaa/);
+});
+
+test('calendar: titled events in the next days become tasks; busy blocks and holidays are skipped', async () => {
+  const skill = readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8');
+  assert.match(skill, /## Calendar events/);
+  const r = await api('/connectors/calendar/sync', 'POST');
+  assert.equal(r.added, 3);
+  const again = await api('/connectors/calendar/sync', 'POST');
+  assert.equal(again.added, 0, 'event instances are not duplicated on re-sync');
+  const cal = (await api('/tasks')).filter((t: { source: string }) => t.source === 'calendar');
+  assert.equal(cal.length, 1);
+  assert.equal(cal[0].requester, 'me@example.com');
+  const res = await app.fetch(new Request(`http://localhost/api/tasks/${cal[0].uid}/approve`, { method: 'POST', body: JSON.stringify({ sendReply: true, reply: 'x' }) }));
+  assert.equal(res.status, 400, 'nothing to send for a calendar task');
+  await api(`/tasks/${cal[0].uid}/done`, 'POST', {});
+  assert.equal((await api(`/tasks/${cal[0].uid}`)).task.status, 'done');
+});
+
+test('calendar tasks whose event is over leave the Inbox; "Already handled" learns no rule', async () => {
+  const { run } = await import('../server/db.ts');
+  const { expirePastEvents } = await import('../server/connectors/index.ts');
+  const sig = Number(run(
+    `INSERT INTO signals (source, external_id, thread_id, from_name, text, received_at, raw, processed)
+     VALUES ('calendar', 'past@1', 'past', 'me', 'Calendar event: old', ?, ?, 1)`,
+    new Date(Date.now() - 3 * 3600e3).toISOString(),
+    JSON.stringify({ ends_at: new Date(Date.now() - 2 * 3600e3).toISOString() }),
+  ).lastInsertRowid);
+  const id = Number(run(`INSERT INTO tasks (uid, title, source, thread_id, status) VALUES ('old-event-aaaa', 'Old event', 'calendar', 'past', 'suggested')`).lastInsertRowid);
+  run('INSERT INTO task_signals (task_id, signal_id) VALUES (?, ?)', id, sig);
+  assert.equal(expirePastEvents(), 1);
+  assert.equal((await api('/tasks/old-event-aaaa')).task.status, 'dismissed');
+
+  const before = readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8');
+  const tid = Number(run(`INSERT INTO tasks (uid, title, source, thread_id, status) VALUES ('handled-aaaa', 'Handled', 'whatsapp', 'h', 'suggested')`).lastInsertRowid);
+  const r = await api(`/tasks/${tid}/dismiss`, 'POST', { reason: 'Already handled' });
+  assert.equal(r.rule, null);
+  assert.equal(readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8'), before);
+});
