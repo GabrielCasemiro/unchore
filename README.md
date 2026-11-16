@@ -1,8 +1,17 @@
-# unchore
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+    <img alt="unchore" src="docs/images/logo-light.svg" height="64">
+  </picture>
+</h1>
 
-**Your chores, handled.** Unchore reads the places where people ask you for things, finds the
-requests, and puts them in one Inbox. Claude plans each task and writes the reply. You read it,
-fix what you want, and press send.
+<p align="center"><b>Your chores, handled.</b></p>
+
+<p align="center">English · <a href="README.pt-BR.md">Português</a></p>
+
+Unchore reads the places where people ask you for things, finds the requests, and puts them in
+one Inbox. Claude plans each task and writes the reply. You read it, fix what you want, and press
+send.
 
 Where those requests come from is up to you. Each source is a **connector**: plain-language
 instructions telling Claude how to read and reply, plus the access it uses (an MCP server, an API
@@ -12,15 +21,9 @@ Claude can reach it, it can become a connector.
 It runs on your own computer and uses your Claude Code subscription. There is no server, no
 account to create and no API key.
 
-[English](#english) · [Português](#português)
-
 ![The Unchore Inbox: tasks from WhatsApp, Slack, LinkedIn, Gmail and Google Calendar in one list](docs/images/inbox.png)
 
----
-
-## English
-
-### Why
+## Why
 
 Work arrives as messages scattered across apps. "Can you send me the Q3 numbers?" sits in Gmail,
 a client asks for a quote on WhatsApp, someone tags you in Slack, and a meeting you need to prepare
@@ -30,16 +33,12 @@ replies.
 Unchore does the boring part. It notices the requests, turns them into tasks and drafts the
 answer. You stay in charge: nothing is sent until you approve it.
 
-### What it does
+## What it does
 
-```
-Connectors
-  Gmail ──────┐
-  Calendar ───┤                               ┌─ Approve → reply sent in the same thread
-  Slack ──────┼──▶  Inbox  ──▶  AI plan  ─────┼─ Request changes → the AI re-plans
-  WhatsApp ───┤                               └─ Take over → Claude Code, Codex, Claude or ChatGPT
-  your own… ──┘
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-it-works-en-dark.svg">
+  <img alt="Messages from Gmail, Calendar, Slack, WhatsApp or your own connector become tasks in the Inbox. The AI plans each one, and you approve and send the reply, request changes, or take it over in Claude Code, Codex or ChatGPT." src="docs/images/how-it-works-en-light.svg" width="100%">
+</picture>
 
 The AI plan runs on Claude today (more AI providers on the roadmap).
 
@@ -53,7 +52,7 @@ The AI plan runs on Claude today (more AI providers on the roadmap).
 5. **You approve.** The reply goes out in the original conversation. Or you hand the task to Claude
    Code or ChatGPT with all the context in a `TASK.md` file.
 
-### A quick tour
+## A quick tour
 
 **Inbox.** Everything people asked you for, from every source, in one list. Filter by source,
 search, and accept or dismiss with one click. **Why?** shows why Claude thinks it's a task.
@@ -83,7 +82,7 @@ to test it.
 
 ![Connectors page with WhatsApp Business, Gmail, Slack, LinkedIn and Google Calendar switched on](docs/images/connectors.png)
 
-### What you need
+## What you need
 
 - **macOS** and **Node.js 22.13 or newer** (Unchore uses Node's built-in SQLite).
   Linux should mostly work but hasn't been tested yet. See [Known limitations](#known-limitations).
@@ -100,7 +99,7 @@ to test it.
 
 You don't need all of them. Start with the one where most requests reach you.
 
-### Connectors
+## Connectors
 
 A connector answers two questions for Claude: **how do I read new messages here**, and **how do I
 reply**. Most of it is written in plain language. For example, the Slack connector says "read my
@@ -120,7 +119,7 @@ instructions. The next step on the roadmap is to make connectors files you drop 
 `~/unchore/connectors/`, the same way skills work, so you can add a source without touching the
 code.
 
-### Getting started
+## Getting started
 
 ```sh
 git clone https://github.com/GabrielCasemiro/unchore.git
@@ -141,7 +140,7 @@ If your MCP servers have different names, set `GMAIL_MCP_SERVER`, `SLACK_MCP_SER
 `CALENDAR_MCP_SERVER` in `.env`. Use the name from `claude mcp list` with spaces and dots replaced by
 underscores (`claude.ai Gmail` becomes `claude_ai_Gmail`).
 
-#### Start it automatically
+### Start it automatically
 
 To keep Unchore running whenever you log in to your Mac:
 
@@ -152,7 +151,7 @@ To keep Unchore running whenever you log in to your Mac:
 
 Logs go to `~/unchore/server.log`.
 
-### How each step works
+## How each step works
 
 | Step | What happens |
 |---|---|
@@ -163,7 +162,7 @@ Logs go to `~/unchore/server.log`.
 | **Request changes** | Claude re-plans with your notes. You can also save the note to the skill it used. |
 | **Take over** | Unchore writes `~/unchore/tasks/<task-id>/TASK.md` with the conversation, the plan and your skills. Claude Code and Codex open in Terminal in that folder; for Claude and ChatGPT, the context is copied and the site opens. When you're done, run `npx unchore done <task-id> --note "what I did"`. |
 
-### Safety and privacy
+## Safety and privacy
 
 - **Messages are treated as untrusted.** An email could try to give Claude instructions, so every
   Claude run has no shell, file or web access. Reading and planning get no tools at all. A sync or
@@ -175,7 +174,7 @@ Logs go to `~/unchore/server.log`.
   through the connectors on your claude.ai account.
 - **No telemetry.**
 
-### Costs and limits
+## Costs and limits
 
 Unchore uses your Claude Code subscription for every AI step. Each sync of Gmail, Slack, Calendar
 or LinkedIn is one Claude run, so short sync intervals can eat into your session and weekly
@@ -184,7 +183,7 @@ through uazapi and only calls Claude when there are new messages.
 
 Set `UNCHORE_MODEL` in `.env` to pick the model (default: `sonnet`).
 
-### Known limitations
+## Known limitations
 
 - **Gmail replies are drafts.** The claude.ai Gmail connector can't send, so you press Send in Gmail.
 - **WhatsApp uses uazapi**, an unofficial WhatsApp API. Unofficial clients can get a number banned.
@@ -197,7 +196,7 @@ Set `UNCHORE_MODEL` in `.env` to pick the model (default: `sonnet`).
   (OpenAI-compatible APIs, Gemini and local models through Ollama) is on the roadmap, starting with
   triage and planning.
 
-### Your data
+## Your data
 
 ```
 ~/unchore/
@@ -208,7 +207,7 @@ Set `UNCHORE_MODEL` in `.env` to pick the model (default: `sonnet`).
 
 Change the folder with `UNCHORE_HOME` in `.env`.
 
-### Development
+## Development
 
 ```sh
 npm run dev         # API on :4477, UI with hot reload on http://localhost:5173
@@ -219,193 +218,13 @@ npm run typecheck
 Set `UNCHORE_DEBUG=1` to log every Claude run. The original design notes are in
 [`docs/DESIGN.md`](docs/DESIGN.md).
 
-### Contributing
+## Contributing
 
 Issues and pull requests are welcome. New connectors (Outlook, Telegram, Discord…) and other AI
 backends are the most wanted contributions. Please open an issue first for anything big, so we can
 agree on the approach.
 
-### License
+## License
 
 [AGPL-3.0](LICENSE). You can use, change and self-host Unchore freely. If you offer a modified
 version as a service to others, you must share your changes under the same license.
-
----
-
-## Português
-
-O Unchore lê os lugares onde as pessoas te pedem coisas, encontra os pedidos e junta tudo numa
-caixa de entrada só. O Claude planeja cada tarefa e escreve a resposta. Você lê, ajusta o que
-quiser e envia.
-
-De onde vêm esses pedidos é você quem decide. Cada fonte é um **conector**: instruções em
-linguagem natural que dizem ao Claude como ler e como responder, mais o acesso que ele usa (um
-servidor MCP, uma API ou o seu navegador). Gmail, Google Calendar, Slack, WhatsApp Business e
-LinkedIn já vêm prontos. Se o Claude consegue acessar, pode virar um conector.
-
-### Por quê
-
-O trabalho chega espalhado em mensagens. "Me manda os números do 3º trimestre?" fica no Gmail, um
-cliente pede orçamento no WhatsApp, alguém te marca no Slack, e tem uma reunião na agenda para
-preparar. Acompanhar tudo isso já é um trabalho, e escrever a maioria das respostas também.
-
-O Unchore faz a parte chata: percebe os pedidos, transforma em tarefas e escreve a resposta. Quem
-decide é você. Nada é enviado sem a sua aprovação.
-
-### O que ele faz
-
-1. **Lê suas mensagens.** A cada poucos minutos, o Unchore confere cada conector que você ligou.
-2. **Decide o que é tarefa.** O Claude lê as mensagens novas e fica só com os pedidos de verdade.
-   Newsletter, recibo e "valeu!" ficam de fora, com o motivo anotado.
-3. **Você aceita ou descarta.** Tarefas novas chegam com o selo **New**. Quando você diz "Not a
-   task", o motivo vira uma regra para não acontecer de novo.
-4. **O Claude planeja.** Você recebe os passos, um rascunho opcional (resumo, pauta, tabela) e a
-   resposta pronta. O que o Claude não sabe fica como `[campo]`, em vez de ser inventado. Hoje o
-   plano roda no Claude (outros provedores de IA estão no roadmap).
-5. **Você aprova.** A resposta sai na conversa original. Ou você passa a tarefa para o Claude Code
-   ou para o ChatGPT, com todo o contexto num arquivo `TASK.md`.
-
-### Um tour rápido
-
-**Inbox.** Tudo o que te pediram, de todas as fontes, numa lista só. Filtre por fonte, busque, e
-aceite ou descarte com um clique. **Why?** mostra por que o Claude achou que era uma tarefa.
-
-![Inbox com uma tarefa nova do WhatsApp selecionada](docs/images/inbox.png)
-
-**Plano do Claude.** Abra uma tarefa: a conversa fica à esquerda e o plano à direita, com os
-passos, um rascunho e a resposta que você pode editar. O Claude nunca inventa números nem datas. O
-que falta vira `[campo]`, e o Unchore não envia uma resposta com campo vazio.
-
-![Tela da tarefa com o e-mail, o plano do Claude, o rascunho e a resposta com campos a preencher](docs/images/task-plan.png)
-
-**Inbox agent.** Pergunte por que algo entrou ou ficou de fora, ou diga o que mudar: "mensagens do
-Café Aurora são sempre prioridade alta". Ele transforma isso em regra e pode reler as últimas 24
-horas.
-
-![O Inbox agent explicando por que pulou um recibo e adicionando uma regra de prioridade](docs/images/inbox-agent.png)
-
-**Skills.** Arquivos Markdown simples que dizem ao Claude como você gosta das coisas: o que conta
-como tarefa, como você escreve respostas, como marca reuniões. Edite no app ou em qualquer
-editor. Cada mudança vira uma nova versão, e o seu feedback vai melhorando as skills com o tempo.
-
-![Página de Skills com a skill What counts as a task aberta](docs/images/skills.png)
-
-**Connectors.** Ligue ou desligue cada fonte, escolha de quanto em quanto tempo ela sincroniza e
-rode um sync na mão para testar.
-
-![Página de Connectors com as cinco fontes ligadas](docs/images/connectors.png)
-
-### Do que você precisa
-
-- **macOS** e **Node.js 22.13 ou mais novo** (o Unchore usa o SQLite que já vem no Node). No Linux
-  deve funcionar quase tudo, mas ainda não foi testado.
-- **[Claude Code](https://claude.com/claude-code)** logado, com o comando `claude` no PATH.
-- Para cada conector pronto que quiser usar:
-
-| Conector | Do que precisa |
-|---|---|
-| Gmail | Conector do Gmail no claude.ai (Configurações → Conectores → Gmail) |
-| Google Calendar | Conector do Google Calendar no claude.ai |
-| Slack | Conector do Slack no claude.ai, ou qualquer servidor MCP do Slack |
-| WhatsApp Business | Uma instância do [uazapi](https://docs.uazapi.com) (URL e token) |
-| LinkedIn | Chrome com a extensão Claude in Chrome, logado no LinkedIn |
-
-Não precisa de todos. Comece pelo lugar onde chega a maioria dos pedidos.
-
-### Conectores
-
-Um conector responde duas perguntas para o Claude: **como leio as mensagens novas aqui** e **como
-respondo**. Quase tudo é escrito em linguagem natural. O conector do Slack, por exemplo, diz "leia
-minhas DMs, menções e threads em que participo desde o último sync" e aponta o Claude para o
-servidor MCP do Slack. O Claude faz o resto e entrega ao Unchore uma lista de mensagens num formato
-fixo.
-
-Por isso, uma fonte nova não precisa de código de integração próprio. Ela precisa de:
-
-1. **Acesso** que o Claude Code consiga usar: um servidor MCP (existem para Outlook, Notion,
-   Linear, Jira, GitHub, Discord, Telegram e muitos outros), uma API HTTP ou um site aberto no
-   Chrome.
-2. **Instruções de leitura**: onde olhar, o que conta como novo, o que ignorar.
-3. **Instruções de resposta**: como responder na mesma conversa, ou "aqui só dá para criar
-   rascunho".
-
-Hoje os conectores ficam em [`server/connectors/`](server/connectors/). Veja o
-`claudeSources.ts`: Gmail, Slack e LinkedIn são, cada um, um bloco curto de configurações e
-instruções. O próximo passo é transformar conectores em arquivos que você coloca em
-`~/unchore/connectors/`, do mesmo jeito que as skills, para adicionar uma fonte sem mexer no código.
-
-### Começando
-
-```sh
-git clone https://github.com/GabrielCasemiro/unchore.git
-cd unchore
-npm install
-cp .env.example .env      # só para o WhatsApp: coloque a URL e o token do uazapi
-npm run build
-npm start
-```
-
-Abra **http://localhost:4477**, vá em **Connectors**, ligue uma fonte e clique em **Sync now**. A
-primeira leitura do Gmail pega as últimas 24 horas e leva um ou dois minutos.
-
-O passo a passo de cada fonte, com prints, está em
-[`docs/connecting-sources.md`](docs/connecting-sources.md).
-
-Para deixar o Unchore rodando sempre que você entrar no Mac:
-
-```sh
-./scripts/install-launchd.sh             # instalar
-./scripts/install-launchd.sh uninstall   # remover
-```
-
-### Segurança e privacidade
-
-- **Mensagens são tratadas como não confiáveis.** Um e-mail pode tentar dar ordens ao Claude, então
-  nenhuma execução tem acesso a terminal, arquivos ou web. Leitura e planejamento não recebem
-  ferramenta nenhuma. Um sync ou um envio só recebe as ferramentas daquela fonte.
-- **Nada sai sem o seu OK.** Toda resposta espera o **Approve**.
-- **Fica no seu computador.** O servidor só escuta em `127.0.0.1` e recusa pedidos de outros sites.
-  Seus dados ficam num arquivo SQLite e em arquivos Markdown em `~/unchore/`.
-- **Sem senha do Google ou do Slack.** O Unchore nunca vê essas senhas. Quem lê essas fontes é o
-  Claude Code, pelos conectores da sua conta claude.ai.
-- **Sem telemetria.**
-
-### Custos e limites
-
-Cada passo de IA usa a sua assinatura do Claude Code. Cada sync de Gmail, Slack, Calendar ou
-LinkedIn é uma execução do Claude, então intervalos curtos gastam seus limites de sessão e
-semanais. Se bater no limite, sincronize com menos frequência: a cada 15–30 minutos é suficiente
-para e-mail.
-
-### Limitações conhecidas
-
-- **Respostas do Gmail viram rascunho.** O conector do Gmail no claude.ai não envia; você clica em
-  Enviar no Gmail.
-- **O WhatsApp usa o uazapi**, uma API não oficial. Clientes não oficiais podem ter o número
-  banido. Use um número com o qual você esteja tranquilo.
-- **O LinkedIn é lido pelo seu navegador.** Isso vai contra os termos de uso do LinkedIn, e quem
-  corre o risco é a sua conta. Vem desligado.
-- **macOS primeiro.** Abrir o Claude Code ou o Codex no Terminal e iniciar junto com o sistema só
-  funcionam no macOS.
-- **Só Claude, por enquanto.** Todo passo de IA passa pelo Claude Code. Suporte a outros provedores
-  de IA (APIs compatíveis com a da OpenAI, Gemini e modelos locais via Ollama) está no roadmap,
-  começando pela triagem e pelo plano.
-
-### Desenvolvimento
-
-```sh
-npm run dev         # API na :4477, interface com hot reload em http://localhost:5173
-npm test            # fluxo completo contra um Claude falso e um uazapi falso
-npm run typecheck
-```
-
-### Contribuindo
-
-Issues e pull requests são bem-vindos. Novos conectores (Outlook, Telegram, Discord…) e outros
-modelos de IA são as contribuições mais desejadas. Para mudanças grandes, abra uma issue antes.
-
-### Licença
-
-[AGPL-3.0](LICENSE). Você pode usar, alterar e hospedar o Unchore para você à vontade. Se oferecer
-uma versão modificada como serviço para outras pessoas, precisa publicar suas mudanças sob a mesma
-licença.
