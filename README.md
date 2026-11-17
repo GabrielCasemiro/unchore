@@ -130,6 +130,10 @@ npm run build
 npm start
 ```
 
+Prefer a guide? Open the folder in Claude Code and ask it to "set up Unchore for me". The repo's
+[`CLAUDE.md`](CLAUDE.md) walks it through checking requirements, connecting your sources and
+writing your first skills.
+
 Open **http://localhost:4477**, go to **Connectors**, switch on a source and press **Sync now**.
 The first Gmail sync reads the last 24 hours and takes a minute or two.
 
@@ -222,7 +226,9 @@ Set `UNCHORE_DEBUG=1` to log every Claude run. The original design notes are in
 
 Issues and pull requests are welcome. New connectors (Outlook, Telegram, Discord…) and other AI
 backends are the most wanted contributions. Please open an issue first for anything big, so we can
-agree on the approach.
+agree on the approach. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to run it, how to add a
+connector and what a good pull request looks like. To report a security problem, see
+[SECURITY.md](SECURITY.md).
 
 ## License
 

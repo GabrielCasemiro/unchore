@@ -1,0 +1,35 @@
+name: Bug report
+description: Something doesn't work the way the README says it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please **remove any real messages, names, emails or phone numbers** from logs and screenshots before posting.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: connector
+    attributes:
+      label: Connector
+      multiple: true
+      options: [Gmail, Google Calendar, Slack, WhatsApp, LinkedIn, Not connector-related]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from the server output or ~/unchore/server.log (run with UNCHORE_DEBUG=1 for more detail).
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: OS, `node --version` and `claude --version`.
+      placeholder: macOS 15.4, Node 22.13.0, Claude Code 2.1.0
+    validations:
+      required: true

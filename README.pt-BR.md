@@ -132,6 +132,10 @@ npm run build
 npm start
 ```
 
+Prefere ajuda? Abra a pasta no Claude Code e peça "configura o Unchore pra mim". O
+[`CLAUDE.md`](CLAUDE.md) do repositório guia o Claude para conferir os requisitos, conectar suas
+fontes e escrever as suas primeiras skills.
+
 Abra **http://localhost:4477**, vá em **Connectors**, ligue uma fonte e clique em **Sync now**. A
 primeira leitura do Gmail pega as últimas 24 horas e leva um ou dois minutos.
 
@@ -225,7 +229,9 @@ em [`docs/DESIGN.md`](docs/DESIGN.md).
 
 Issues e pull requests são bem-vindos. Novos conectores (Outlook, Telegram, Discord…) e outros
 modelos de IA são as contribuições mais desejadas. Para mudanças grandes, abra uma issue antes para
-combinarmos a abordagem.
+combinarmos a abordagem. O [CONTRIBUTING.md](CONTRIBUTING.md) (em inglês) explica como rodar o
+projeto, como criar um conector e o que se espera de um pull request. Para reportar um problema de
+segurança, veja o [SECURITY.md](SECURITY.md).
 
 ## Licença
 
