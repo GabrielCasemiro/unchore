@@ -6,7 +6,7 @@ import { config } from './config.ts';
 import { connectors, connectorState, syncConnector, updateConnector } from './connectors/index.ts';
 import type { SourceId } from './connectors/types.ts';
 import { all } from './db.ts';
-import { getSkill, listSkills, saveSkill, skillHistory } from './skills.ts';
+import { exportSkill, getSkill, installSkill, listLibrary, listSkills, saveSkill, skillHistory } from './skills.ts';
 import {
   acceptTask, approveTask, dismissTask, getTask, getThread, listTasks, markDone, planTask,
   reopenTask, requestChanges, resolveTaskId, takeOver, taskEvents, undoDismiss, type TakeoverTool,
@@ -89,6 +89,9 @@ export function createApp() {
     const body = await c.req.json<{ name: string; when: string; body: string }>();
     return c.json(saveSkill(c.req.param('slug'), body));
   });
+  app.get('/api/skills/:slug/export', (c) => c.json(exportSkill(c.req.param('slug'))));
+  app.get('/api/library', (c) => c.json(listLibrary()));
+  app.post('/api/library/:slug/install', (c) => c.json(installSkill(c.req.param('slug'))));
 
   // Connectors
   app.get('/api/connectors', (c) => c.json(connectorState()));

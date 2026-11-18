@@ -15,6 +15,7 @@ export const config = {
   home,
   dbPath: join(home, 'unchore.db'),
   skillsDir: join(home, 'skills'),
+  librarySkillsDir: join(root, 'skills'),
   tasksDir: join(home, 'tasks'),
   port: Number(process.env.PORT || 4477),
   claudeBin: process.env.CLAUDE_BIN || 'claude',

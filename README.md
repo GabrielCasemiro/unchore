@@ -74,6 +74,8 @@ hours.
 **Skills.** Skills are plain Markdown files that tell Claude how you like things done: what counts
 as a task, how you write replies, how you schedule meetings. Edit them in the app or in any
 editor. Every change is saved as a new version, and your feedback updates them over time.
+The **Library** has ready-made skills (quote requests, meeting prep, follow-ups, status updates)
+that you install with one click, and **Export** turns any of yours into a file you can share.
 
 ![Skills page with the skill What counts as a task open for editing](docs/images/skills.png)
 
@@ -205,7 +207,7 @@ Set `UNCHORE_MODEL` in `.env` to pick the model (default: `sonnet`).
 ```
 ~/unchore/
   unchore.db          tasks, messages, decisions and history (SQLite)
-  skills/*.md         your skills, with version history in the database
+  skills/*.md         your skills, with version history in the database (never in the repo)
   tasks/<task-id>/    TASK.md files for take-over sessions
 ```
 
@@ -224,8 +226,8 @@ Set `UNCHORE_DEBUG=1` to log every Claude run. The original design notes are in
 
 ## Contributing
 
-Issues and pull requests are welcome. New connectors (Outlook, Telegram, Discord…) and other AI
-backends are the most wanted contributions. Please open an issue first for anything big, so we can
+Issues and pull requests are welcome. New connectors (Outlook, Telegram, Discord…), skills for the
+library and other AI backends are the most wanted contributions. Please open an issue first for anything big, so we can
 agree on the approach. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to run it, how to add a
 connector and what a good pull request looks like. To report a security problem, see
 [SECURITY.md](SECURITY.md).

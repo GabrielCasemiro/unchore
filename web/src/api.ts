@@ -57,6 +57,15 @@ export interface Skill {
   file: string;
 }
 
+export interface LibrarySkill {
+  slug: string;
+  name: string;
+  when: string;
+  author: string;
+  body: string;
+  installed: boolean;
+}
+
 export interface ConnectorInfo {
   id: SourceId;
   name: string;
@@ -110,6 +119,9 @@ export const api = {
   skill: (slug: string) =>
     request<{ skill: Skill; history: Array<{ version: number; note: string; created_at: string }>; recent: Array<{ uid: string; title: string; status: string }> }>(`/skills/${slug}`),
   saveSkill: (slug: string, body: { name: string; when: string; body: string }) => request<Skill>(`/skills/${slug}`, 'PUT', body),
+  exportSkill: (slug: string) => request<{ file: string; markdown: string }>(`/skills/${slug}/export`),
+  library: () => request<LibrarySkill[]>('/library'),
+  installSkill: (slug: string) => request<Skill>(`/library/${slug}/install`, 'POST'),
   connectors: () => request<ConnectorInfo[]>('/connectors'),
   updateConnector: (id: SourceId, patch: Partial<{ enabled: boolean; intervalMin: number; settings: Record<string, unknown> }>) =>
     request<ConnectorInfo[]>(`/connectors/${id}`, 'PATCH', patch),

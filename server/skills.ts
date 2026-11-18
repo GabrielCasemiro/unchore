@@ -16,74 +16,23 @@ export interface Skill {
   file: string;
 }
 
-const DEFAULTS: Record<string, { name: string; when: string; system?: boolean; body: string }> = {
-  [TASK_SKILL]: {
-    name: 'What counts as a task',
-    when: 'Every new message',
-    system: true,
-    body: `# What counts as a task
-
-A message is a task when someone asks me to do, send, decide, review, answer or
-schedule something, or when a reply from me is clearly expected.
-
-## Not tasks
-- Newsletters, promotions, automated notifications and receipts
-- Messages I sent myself
-- Group chatter that doesn't mention me or ask me something
-- Simple thanks / ok / emoji replies
-
-## Calendar events
-- Every event with a title that I organize, accepted or haven't answered becomes a task
-  ("Prepare for …" or the event title), due on the event date
-- Skip holidays, all-day out-of-office/birthday events, declined events and
-  free/busy blocks without a title
-
-## Priority
-- High: clients, money, legal, anything due in the next 48h
-- Low: personal chats, nice-to-have requests
-`,
-  },
-  'writing-replies': {
-    name: 'Writing replies',
-    when: 'Any task answered with a message',
-    body: `# Writing replies
-
-- Reply in the same language the person wrote in
-- Short and friendly; no greetings longer than one line
-- Answer the question first, then details
-- Never promise dates or prices that are not in the thread
-`,
-  },
-  scheduling: {
-    name: 'Scheduling',
-    when: 'Meetings, calls, events and reservations',
-    body: `# Scheduling
-
-- Offer two concrete time options instead of asking "when works?"
-- Default meeting length: 30 minutes
-- Mention the time zone when the person is in another country
-`,
-  },
-};
-
 const fileOf = (slug: string) => join(config.skillsDir, `${slug}.md`);
+const libraryFileOf = (slug: string) => join(config.librarySkillsDir, `${slug}.md`);
 const validSlug = (slug: string) => /^[a-z0-9][a-z0-9-]{0,60}$/.test(slug);
 
-function parse(slug: string, text: string): Omit<Skill, 'version' | 'updatedAt'> {
+function frontmatter(text: string) {
   const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   const meta: Record<string, string> = {};
   if (m) for (const line of m[1].split('\n')) {
     const i = line.indexOf(':');
     if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   }
-  return {
-    slug,
-    name: meta.name || slug,
-    when: meta.when || '',
-    system: meta.system === 'true',
-    body: (m ? m[2] : text).trim() + '\n',
-    file: fileOf(slug),
-  };
+  return { meta, body: (m ? m[2] : text).trim() + '\n' };
+}
+
+function parse(slug: string, text: string): Omit<Skill, 'version' | 'updatedAt'> {
+  const { meta, body } = frontmatter(text);
+  return { slug, name: meta.name || slug, when: meta.when || '', system: meta.system === 'true', body, file: fileOf(slug) };
 }
 
 function serialize(s: { name: string; when: string; system: boolean; body: string }) {
@@ -94,21 +43,69 @@ function versionOf(slug: string) {
   return get<{ v: number; at: string }>('SELECT MAX(version) AS v, MAX(created_at) AS at FROM skill_versions WHERE skill = ?', slug);
 }
 
-export function seedSkills() {
-  for (const [slug, d] of Object.entries(DEFAULTS)) {
-    if (existsSync(fileOf(slug))) continue;
-    writeFileSync(fileOf(slug), serialize({ ...d, system: !!d.system }));
-    run('INSERT INTO skill_versions (skill, version, body, note) VALUES (?, 1, ?, ?)', slug, d.body, 'created');
-  }
+export interface LibrarySkill {
+  slug: string;
+  name: string;
+  when: string;
+  author: string;
+  starter: boolean;
+  system: boolean;
+  body: string;
+  installed: boolean;
 }
 
-const CALENDAR_RULES = DEFAULTS[TASK_SKILL].body.slice(DEFAULTS[TASK_SKILL].body.indexOf('## Calendar events'), DEFAULTS[TASK_SKILL].body.indexOf('## Priority')).trim();
+/** Public skills shipped in the repo's skills/ folder. Users install a copy into their own folder. */
+export function listLibrary(): LibrarySkill[] {
+  if (!existsSync(config.librarySkillsDir)) return [];
+  return readdirSync(config.librarySkillsDir)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => librarySkill(f.slice(0, -3)))
+    .filter((s): s is LibrarySkill => !!s)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function librarySkill(slug: string): LibrarySkill | null {
+  if (!validSlug(slug) || !existsSync(libraryFileOf(slug))) return null;
+  const { meta, body } = frontmatter(readFileSync(libraryFileOf(slug), 'utf8'));
+  return {
+    slug,
+    name: meta.name || slug,
+    when: meta.when || '',
+    author: meta.author || '',
+    starter: meta.starter === 'true',
+    system: meta.system === 'true',
+    body,
+    installed: existsSync(fileOf(slug)),
+  };
+}
+
+export function installSkill(slug: string): Skill {
+  const lib = librarySkill(slug);
+  if (!lib) throw new Error(`No skill called ${slug} in the library`);
+  if (lib.installed) throw new Error(`You already have a skill called ${slug}`);
+  return saveSkill(slug, lib, 'installed from the library');
+}
+
+/** Starter skills are installed on first run and never overwritten. */
+export function seedSkills() {
+  for (const s of listLibrary()) if (s.starter && !s.installed) saveSkill(s.slug, s, 'created');
+}
+
+/** A skill as a file to share: without the rules learned from my own feedback, which often name real people. */
+export function exportSkill(slug: string) {
+  const s = getSkill(slug);
+  if (!s) throw new Error(`Unknown skill ${slug}`);
+  const body = s.body.replace(/\n*## Learned from feedback\n[\s\S]*?(?=\n## |$)/, '\n');
+  return { file: `${slug}.md`, markdown: serialize({ name: s.name, when: s.when, system: s.system, body }) };
+}
 
 /** Skills created before a feature existed get its default rules once. */
 export function migrateSkills() {
   const s = getSkill(TASK_SKILL);
-  if (s && !s.body.includes('## Calendar events')) {
-    saveSkill(TASK_SKILL, { name: s.name, when: s.when, body: `${s.body.trimEnd()}\n\n${CALENDAR_RULES}\n`, system: true }, 'added calendar rules');
+  const defaults = librarySkill(TASK_SKILL)?.body ?? '';
+  const calendarRules = defaults.slice(defaults.indexOf('## Calendar events'), defaults.indexOf('## Priority')).trim();
+  if (s && calendarRules && !s.body.includes('## Calendar events')) {
+    saveSkill(TASK_SKILL, { name: s.name, when: s.when, body: `${s.body.trimEnd()}\n\n${calendarRules}\n`, system: true }, 'added calendar rules');
   }
 }
 

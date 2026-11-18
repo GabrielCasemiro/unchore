@@ -56,8 +56,16 @@ Never print, log or commit `.env` values. Let the person type tokens themselves.
 
 ## Skills
 
-Skills tell Claude how this person wants things done. They live in `~/unchore/skills/<slug>.md`
-(or `$UNCHORE_HOME/skills/`), with a small header:
+Skills tell Claude how this person wants things done. There are two places:
+
+- **The person's skills** live in `~/unchore/skills/<slug>.md` (or `$UNCHORE_HOME/skills/`). They
+  are private and never go into the repo. This is what the app reads and edits.
+- **The library** is the repo's [`skills/`](skills/) folder: public, made-up-data skills anyone can
+  install from the Skills page (or `POST /api/library/<slug>/install`). Installing copies the file
+  into the person's folder; it never overwrites one they already have. Library files marked
+  `starter: true` are installed on first run.
+
+Each skill is Markdown with a small header:
 
 ```markdown
 ---
@@ -95,6 +103,11 @@ When someone asks you to create or change a skill:
    history. The **Skills** page in the app does the same as the API.
 3. Never put secrets or someone else's private data in a skill.
 
+When someone wants to share a skill, use **Export** on the Skills page (or
+`GET /api/skills/<slug>/export`). It drops the `## Learned from feedback` section, which usually
+names real people. Read the result with them before it goes anywhere, and only add it to the repo's
+`skills/` folder when it is generic and public.
+
 ## Code map
 
 ```
@@ -111,6 +124,7 @@ server/
   connectors/       whatsapp.ts (uazapi API), claudeSources.ts (Gmail/Slack/LinkedIn via Claude),
                     calendar.ts, index.ts (registry and scheduler), types.ts (Connector interface)
 web/src/            React UI: pages/Inbox, Task, Skills, Connectors
+skills/             public skill library (starter skills + ones to install)
 bin/unchore.ts      CLI used from take-over sessions
 test/               flow.test.ts + fake-claude.mjs
 ```

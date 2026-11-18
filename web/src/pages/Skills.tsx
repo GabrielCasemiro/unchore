@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
-import { api, type Skill, timeAgo } from '../api.ts';
+import { api, type LibrarySkill, type Skill, timeAgo } from '../api.ts';
 import { toast, usePoll } from '../App.tsx';
 import { Icon } from '../icons.tsx';
 
 export function Skills({ initial }: { initial?: string }) {
   const { data: skills, reload } = usePoll(api.skills, 30_000);
+  const { data: library, reload: reloadLibrary } = usePoll(api.library, 60_000);
   const [selected, setSelected] = useState<string | undefined>(initial);
   const [creating, setCreating] = useState(false);
-  useEffect(() => setSelected(initial), [initial]);
+  const [browsing, setBrowsing] = useState<string | null>(null);
+  useEffect(() => { setSelected(initial); setBrowsing(null); }, [initial]);
   const current = skills?.find((s) => s.slug === selected) ?? skills?.[0];
+  const available = library?.filter((s) => !s.installed) ?? [];
+  const preview = available.find((s) => s.slug === browsing);
 
   return (
     <>
@@ -24,7 +28,7 @@ export function Skills({ initial }: { initial?: string }) {
       <div className="columns">
         <section className="skill-list" aria-label="All skills">
           {skills?.map((s) => (
-            <button key={s.slug} type="button" className={`skill-item ${current?.slug === s.slug && !creating ? 'selected' : ''}`} onClick={() => { setCreating(false); location.hash = `#/skills/${s.slug}`; setSelected(s.slug); }}>
+            <button key={s.slug} type="button" className={`skill-item ${current?.slug === s.slug && !creating && !preview ? 'selected' : ''}`} onClick={() => { setCreating(false); setBrowsing(null); location.hash = `#/skills/${s.slug}`; setSelected(s.slug); }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <strong style={{ fontSize: 15, flex: 1 }}>{s.name}</strong>
                 {s.system && <span className="chip violet">Inbox</span>}
@@ -33,9 +37,24 @@ export function Skills({ initial }: { initial?: string }) {
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>v{s.version} · updated {timeAgo(s.updatedAt) || 'never'}</span>
             </button>
           ))}
+          {!!available.length && (
+            <>
+              <h2 style={{ marginTop: 16 }}>Library</h2>
+              <p className="sub" style={{ margin: 0, fontSize: 13 }}>Ready-made skills shared in the Unchore repo. Install one to get your own copy.</p>
+              {available.map((s) => (
+                <button key={s.slug} type="button" className={`skill-item ${preview?.slug === s.slug ? 'selected' : ''}`} onClick={() => { setCreating(false); setBrowsing(s.slug); }}>
+                  <strong style={{ fontSize: 15 }}>{s.name}</strong>
+                  <span className="sub" style={{ color: '#5a5a66' }}>{s.when}</span>
+                  {s.author && <span style={{ fontSize: 12, color: 'var(--muted)' }}>by {s.author}</span>}
+                </button>
+              ))}
+            </>
+          )}
         </section>
         {creating ? (
           <Editor key="new" isNew onSaved={(slug) => { setCreating(false); reload(); location.hash = `#/skills/${slug}`; }} />
+        ) : preview ? (
+          <LibraryPreview key={preview.slug} skill={preview} onInstalled={(slug) => { reload(); reloadLibrary(); setBrowsing(null); location.hash = `#/skills/${slug}`; setSelected(slug); }} />
         ) : (
           current && <Editor key={current.slug + current.version} skill={current} onSaved={() => reload()} />
         )}
@@ -74,6 +93,21 @@ function Editor({ skill, isNew, onSaved }: { skill?: Skill; isNew?: boolean; onS
             toast((e as Error).message);
           }
         }}>{isNew ? 'Create skill' : `Save as v${(skill?.version ?? 0) + 1}`}</button>
+        {skill && (
+          <button type="button" className="btn small" style={{ flex: '0 0 auto' }} onClick={async () => {
+            try {
+              const { file, markdown } = await api.exportSkill(skill.slug);
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }));
+              link.download = file;
+              link.click();
+              URL.revokeObjectURL(link.href);
+              toast('Exported without the rules learned from your feedback. Check it for personal details before sharing.');
+            } catch (e) {
+              toast((e as Error).message);
+            }
+          }}>Export</button>
+        )}
       </div>
       {extra && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, paddingTop: 14, borderTop: '1px solid var(--line-2)' }}>
@@ -89,6 +123,32 @@ function Editor({ skill, isNew, onSaved }: { skill?: Skill; isNew?: boolean; onS
           )}
         </div>
       )}
+    </section>
+  );
+}
+
+function LibraryPreview({ skill, onInstalled }: { skill: LibrarySkill; onInstalled: (slug: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="detail card raised" style={{ flex: '2 1 520px' }} aria-label="Library skill">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <h2 style={{ fontSize: 20 }}>{skill.name}</h2>
+        <span className="sub">Used when: {skill.when}{skill.author ? ` · by ${skill.author}` : ''}</span>
+      </div>
+      <pre className="textarea code" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{skill.body}</pre>
+      <div className="actions" style={{ alignItems: 'center' }}>
+        <button type="button" className="btn dark" style={{ flex: '0 0 auto' }} disabled={busy} onClick={async () => {
+          setBusy(true);
+          try {
+            const s = await api.installSkill(skill.slug);
+            toast(`Installed ${s.name}. Edit it to make it yours.`);
+            onInstalled(s.slug);
+          } catch (e) {
+            toast((e as Error).message);
+            setBusy(false);
+          }
+        }}>Install</button>
+      </div>
     </section>
   );
 }

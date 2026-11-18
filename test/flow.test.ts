@@ -180,6 +180,27 @@ test('skills can be edited and keep a version history', async () => {
   assert.equal((await api('/skills/scheduling')).history.length, 2);
 });
 
+test('library skills can be installed, and exports leave out learned rules', async () => {
+  const library = await api('/library');
+  const starter = library.find((s: { slug: string }) => s.slug === 'writing-replies');
+  assert.equal(starter.installed, true, 'starter skills are installed on first run');
+  assert.equal(library.find((s: { slug: string }) => s.slug === 'quote-requests').installed, false);
+
+  const installed = await api('/library/quote-requests/install', 'POST');
+  assert.equal(installed.version, 1);
+  assert.match(readFileSync(join(home, 'skills', 'quote-requests.md'), 'utf8'), /# Answering quote requests/);
+  const res = await app.fetch(new Request('http://localhost/api/library/quote-requests/install', { method: 'POST' }));
+  assert.equal(res.status, 400, 'installing twice never overwrites my copy');
+
+  const { appendRule } = await import('../server/skills.ts');
+  appendRule('quote-requests', 'Café Aurora gets 10% off', 'test');
+  const exported = await api('/skills/quote-requests/export');
+  assert.equal(exported.file, 'quote-requests.md');
+  assert.match(exported.markdown, /^---\nname: Answering quote requests\n/);
+  assert.match(exported.markdown, /## Draft/);
+  assert.doesNotMatch(exported.markdown, /Learned from feedback|Café Aurora/);
+});
+
 test('API rejects requests from other websites', async () => {
   const res = await app.fetch(new Request('http://localhost/api/tasks', { headers: { origin: 'https://evil.example' } }));
   assert.equal(res.status, 403);

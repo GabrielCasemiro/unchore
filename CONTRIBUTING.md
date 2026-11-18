@@ -6,6 +6,7 @@ like.
 
 ## Good places to start
 
+- **Skills for the library.** See [Sharing a skill](#sharing-a-skill).
 - **New connectors.** Outlook, Telegram, Discord, Notion, Linear… Anything Claude can reach through
   an MCP server, an API or the browser. See [Adding a connector](#adding-a-connector).
 - **Other AI providers.** Triage and planning only need text in and JSON out, so they could run on
@@ -58,6 +59,7 @@ server/
   skills.ts           skills as Markdown files with version history
   connectors/         one file per kind of source
 web/src/              React app (Inbox, Task, Skills, Connectors pages)
+skills/               the public skill library shown on the Skills page
 test/                 end-to-end test and the fake Claude CLI
 ```
 
@@ -80,6 +82,29 @@ Then:
 - register it in `server/connectors/index.ts`;
 - add its icon in `web/src/icons.tsx`;
 - document what users need in the README table.
+
+## Sharing a skill
+
+The [`skills/`](skills/) folder is the public library that shows up on the Skills page. To add one:
+
+1. Write and use the skill in your own Unchore first, then press **Export**. The export leaves out
+   the rules learned from your feedback.
+2. Remove anything personal: names, clients, prices, links, phone numbers. A library skill should
+   work for anyone.
+3. Save it as `skills/<slug>.md` with this header, and open a pull request:
+
+```markdown
+---
+name: Answering quote requests
+when: Someone asks how much something costs or for a quote
+author: your-github-username
+---
+# Answering quote requests
+
+- Only use prices that appear in the thread; otherwise leave `[price]`
+```
+
+Good skills are short bullets, say plainly when they apply, and tell Claude what never to invent.
 
 ## Ground rules
 

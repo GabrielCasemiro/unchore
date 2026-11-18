@@ -73,6 +73,9 @@ horas.
 **Skills.** Arquivos Markdown simples que dizem ao Claude como você gosta das coisas: o que conta
 como tarefa, como você escreve respostas, como marca reuniões. Edite no app ou em qualquer
 editor. Cada mudança vira uma nova versão, e o seu feedback vai melhorando as skills com o tempo.
+A **Library** tem skills prontas (orçamentos, preparação de reuniões, follow-ups, atualizações de
+status) que você instala com um clique, e o **Export** transforma qualquer skill sua em um arquivo
+para compartilhar.
 
 ![Página de Skills com a skill What counts as a task aberta para edição](docs/images/skills.png)
 
@@ -208,7 +211,7 @@ Para escolher o modelo, defina `UNCHORE_MODEL` no `.env` (padrão: `sonnet`).
 ```
 ~/unchore/
   unchore.db             tarefas, mensagens, decisões e histórico (SQLite)
-  skills/*.md            suas skills, com histórico de versões no banco
+  skills/*.md            suas skills, com histórico de versões no banco (nunca vão para o repo)
   tasks/<id-da-tarefa>/  arquivos TASK.md para continuar a tarefa em outra ferramenta
 ```
 
