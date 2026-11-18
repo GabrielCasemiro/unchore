@@ -1,167 +1,168 @@
-# Conectando suas fontes ao Unchore
+# Connecting your sources to Unchore
 
-Este guia mostra como ligar **Gmail, Google Calendar, Slack, WhatsApp Business e LinkedIn** ao
-Unchore, e como revisar e enviar as respostas depois.
+<p align="center">English · <a href="connecting-sources.pt-BR.md">Português</a></p>
 
-O Unchore não guarda senha nem token do Google ou do Slack. Quem lê essas fontes é o **Claude
-Code** (`claude -p`) rodando no seu Mac, usando os **conectores da sua conta claude.ai**. Basta
-conectar uma vez no claude.ai: o Unchore passa a enxergar o conector automaticamente.
+This guide shows how to connect **Gmail, Google Calendar, Slack, WhatsApp Business and LinkedIn**
+to Unchore, and how to review and send replies afterwards.
 
-| Fonte | Como o Unchore lê | Onde configurar |
+Unchore does not store your Google or Slack password or token. **Claude Code** (`claude -p`) reads
+those sources. It runs on your Mac and uses the **connectors of your claude.ai account**. Connect
+once on claude.ai, and Unchore sees the connector automatically.
+
+| Source | How Unchore reads it | Where to set it up |
 |---|---|---|
-| Gmail | Claude + conector **Gmail** (MCP) | claude.ai → Conectores |
-| Google Calendar | Claude + conector **Google Calendar** (MCP): compromissos dos próximos 7 dias viram tasks | claude.ai → Conectores |
-| Slack | Claude + conector **Slack** (MCP) | claude.ai → Conectores |
-| WhatsApp Business | API do uazapi | arquivo `.env` |
-| LinkedIn | Claude in Chrome | extensão no Chrome |
+| Gmail | Claude + **Gmail** connector (MCP) | claude.ai → Connectors |
+| Google Calendar | Claude + **Google Calendar** connector (MCP): events in the next 7 days become tasks | claude.ai → Connectors |
+| Slack | Claude + **Slack** connector (MCP) | claude.ai → Connectors |
+| WhatsApp Business | uazapi API | `.env` file |
+| LinkedIn | Claude in Chrome | Chrome extension |
 
 ---
 
-## 1. Gmail e Google Calendar
+## 1. Gmail and Google Calendar
 
-### No claude.ai
+### On claude.ai
 
-1. Abra **claude.ai → Configurações → Personalização → Conectores**.
-2. Clique em **Descobrir**, encontre **Gmail** e clique em **+**.
-3. Entre com sua conta Google e autorize o acesso.
-4. Repita para o **Google Calendar**.
+1. Open **claude.ai → Settings → Customize → Connectors**.
+2. Click **Discover**, find **Gmail** and click **+**.
+3. Sign in with your Google account and allow access.
+4. Repeat for **Google Calendar**.
 
-![Aba Descobrir dos conectores no claude.ai, com Gmail, Google Calendar e Slack marcados como adicionados](images/claude-connectors-descobrir.png)
+![The Discover tab of the connectors page on claude.ai, with Gmail, Google Calendar and Slack marked as added (Portuguese interface)](images/claude-connectors-descobrir.png)
 
-Depois de conectados, eles aparecem na aba **Meus** com um ✓:
+Once connected, they show up in the **Mine** tab with a ✓:
 
-![Aba Meus dos conectores no claude.ai, com Gmail, Google Calendar e Slack conectados](images/claude-connectors-meus.png)
+![The Mine tab of the connectors page on claude.ai, with Gmail, Google Calendar and Slack connected (Portuguese interface)](images/claude-connectors-meus.png)
 
-### Confirme no terminal
+### Check in the terminal
 
 ```sh
 claude mcp list
 ```
 
-Você deve ver:
+You should see:
 
 ```
 claude.ai Gmail: https://gmailmcp.googleapis.com/mcp/v1 - ✔ Connected
 claude.ai Google Calendar: https://calendarmcp.googleapis.com/mcp/v1 - ✔ Connected
 ```
 
-### No Unchore
+### In Unchore
 
-1. Abra **http://localhost:4477 → Connectors**.
-2. No card **Gmail**, marque **On** e clique em **Sync now**. A primeira leitura pega as últimas
-   24h e leva cerca de 1–2 minutos.
+1. Open **http://localhost:4477 → Connectors**.
+2. On the **Gmail** card, switch **On** and click **Sync now**. The first sync reads the last
+   24 hours and takes about 1–2 minutes.
 
-![Página Connectors do Unchore com WhatsApp, Gmail, Slack e LinkedIn](images/connectors.png)
+![The Unchore Connectors page with WhatsApp, Gmail, Slack and LinkedIn](images/connectors.png)
 
-> **O Gmail só cria rascunhos.** O conector oficial do Gmail no claude.ai não envia e-mails
-> ("Draft replies…"). Quando você aprova uma resposta de e-mail, o Unchore **salva a resposta como
-> rascunho** na própria thread do Gmail. Depois é só abrir o Gmail e clicar em Enviar. O histórico
-> da task mostra "Reply saved as draft".
+> **Gmail only creates drafts.** The official Gmail connector on claude.ai can't send email
+> ("Draft replies…"). When you approve an email reply, Unchore **saves it as a draft** in the Gmail
+> thread. Then open Gmail and click Send. The task history shows "Reply saved as draft".
 
-### Google Calendar → tasks da semana
+### Google Calendar → this week's tasks
 
-No card **Google Calendar**, marque **On**. A cada hora, o Unchore lê seus eventos dos
-**próximos 7 dias** e cada compromisso vira uma task no Inbox, com prazo na data do evento. Ao
-aceitar, o Claude monta um plano de preparação (pauta, perguntas, materiais).
+On the **Google Calendar** card, switch **On**. Every hour, Unchore reads your events for the
+**next 7 days**. Each event becomes a task in the Inbox, due on the day of the event. When you
+accept it, Claude builds a preparation plan (agenda, questions, materials).
 
-Quais eventos viram task é decidido pela seção **Calendar events** da skill
-**What counts as a task**. O padrão:
+The **Calendar events** section of the **What counts as a task** skill decides which events become
+tasks. By default:
 
-- eventos com título que você organiza, aceitou ou ainda não respondeu viram task;
-- feriados, eventos de dia inteiro de ausência ou aniversário, eventos recusados e blocos
-  "ocupado" sem título (de agendas em que você só vê livre/ocupado) são ignorados.
+- events with a title that you organize, accepted or haven't answered yet become tasks;
+- holidays, all-day absence or birthday events, declined events and untitled "busy" blocks (from
+  calendars where you only see free/busy) are ignored.
 
-Para ajustar, edite a skill em **Skills**, use **Not a task** num evento (por exemplo, "daily
-recorrente") ou peça ao **Inbox agent** ("ignore eventos da agenda X"). Tasks de agenda não têm
-resposta para enviar: use **Done** quando terminar.
+To change this, edit the skill under **Skills**, use **Not a task** on an event (for example, a
+recurring daily), or ask the **Inbox agent** ("ignore events from calendar X"). Calendar tasks have
+no reply to send. Use **Done** when you finish.
 
 ---
 
 ## 2. Slack
 
-1. **claude.ai → Configurações → Personalização → Conectores → Descobrir → Slack → +**.
-2. Escolha o workspace e autorize.
-3. Confira com `claude mcp list` (`claude.ai Slack: ✔ Connected`).
-4. No Unchore, em **Connectors → Slack**, marque **On**.
+1. **claude.ai → Settings → Customize → Connectors → Discover → Slack → +**.
+2. Choose the workspace and allow access.
+3. Check with `claude mcp list` (`claude.ai Slack: ✔ Connected`).
+4. In Unchore, go to **Connectors → Slack** and switch **On**.
 
-O Unchore lê só o que precisa de você: **DMs, menções a você e threads em que você participou**.
-Ele não lê canais inteiros. Respostas aprovadas são postadas na mesma thread.
+Unchore reads only what needs you: **DMs, mentions of you and threads you took part in**. It does
+not read whole channels. Approved replies are posted in the same thread.
 
 ---
 
 ## 3. WhatsApp Business (uazapi)
 
-1. No painel do uazapi, copie a **Server URL** e o **token da instância**.
-2. No arquivo `.env` na raiz do repositório (ele **não** vai para o git):
+1. In the uazapi dashboard, copy the **Server URL** and the **instance token**.
+2. Put them in the `.env` file at the root of the repository (it is **not** committed to git):
 
    ```sh
-   UAZAPI_URL=https://SEU-SUBDOMINIO.uazapi.com
-   UAZAPI_TOKEN=seu-token-da-instancia
+   UAZAPI_URL=https://YOUR-SUBDOMAIN.uazapi.com
+   UAZAPI_TOKEN=your-instance-token
    ```
 
-3. Reinicie o Unchore. O card do WhatsApp liga sozinho.
+3. Restart Unchore. The WhatsApp card turns on by itself.
 
-Por padrão, só **conversas diretas** são lidas. Grupos (principalmente de promoções) geram muito
-ruído; ative **Include groups** no card se quiser lê-los. As respostas aprovadas saem do mesmo
-número, como resposta à última mensagem da pessoa.
+By default, Unchore reads only **direct chats**. Groups (especially promotion groups) are noisy.
+Switch on **Include groups** on the card if you want them. Approved replies go out from the same
+number, as a reply to the person's last message.
 
 ---
 
 ## 4. LinkedIn (Claude in Chrome)
 
-1. Instale a extensão **Claude in Chrome** e faça login no LinkedIn nesse Chrome.
-2. No Unchore, em **Connectors → LinkedIn**, marque **On**. Uma vez por hora é um bom intervalo.
-3. O Chrome precisa estar aberto durante a sincronização. Uma aba do LinkedIn Messaging abre, é
-   lida e fecha sozinha.
+1. Install the **Claude in Chrome** extension and sign in to LinkedIn in that Chrome.
+2. In Unchore, go to **Connectors → LinkedIn** and switch **On**. Once an hour is a good interval.
+3. Chrome must be open during the sync. A LinkedIn Messaging tab opens, is read and closes by
+   itself.
 
 ---
 
-## 5. Nomes dos servidores MCP
+## 5. MCP server names
 
-O Unchore procura os conectores por nome. O padrão já funciona com os conectores do claude.ai:
+Unchore finds the connectors by name. The defaults already work with the claude.ai connectors:
 
-| Variável no `.env` | Padrão | Vem de (`claude mcp list`) |
+| `.env` variable | Default | Comes from (`claude mcp list`) |
 |---|---|---|
 | `GMAIL_MCP_SERVER` | `claude_ai_Gmail` | `claude.ai Gmail` |
 | `SLACK_MCP_SERVER` | `claude_ai_Slack` | `claude.ai Slack` |
 | `CALENDAR_MCP_SERVER` | `claude_ai_Google_Calendar` | `claude.ai Google Calendar` |
 
-Se você usar outro servidor MCP (por exemplo, um servidor local do Gmail), coloque o nome dele com
-espaços e pontos trocados por `_`.
+If you use a different MCP server (for example, a local Gmail server), enter its name with spaces
+and dots replaced by `_`.
 
 ---
 
-## 6. Revisando e enviando uma task
+## 6. Reviewing and sending a task
 
-Ao aceitar uma task, o Claude monta o plano: passos, rascunho (quando há um documento), a
-**resposta** e o que ainda falta você informar.
+When you accept a task, Claude builds the plan: steps, a draft (when there is a document), the
+**reply** and what you still need to provide.
 
-![Tela de uma task no Unchore: conversa, plano do Claude, rascunho, caixa de resposta e botões](images/task-plan.png)
+![A task screen in Unchore: conversation, Claude's plan, draft, reply box and buttons](images/task-plan.png)
 
-| Botão | O que faz |
+| Button | What it does |
 |---|---|
-| **Approve & send reply** | Envia o texto da caixa **Reply** na conversa original: WhatsApp e Slack enviam; Gmail salva rascunho. Fica desabilitado se a resposta estiver vazia ou tiver `[campos]` para preencher. |
-| **Use as reply** | Copia o rascunho para a caixa de resposta, para você editar. |
-| **Request changes** | Devolve ao Claude com suas notas (e, se quiser, grava a nota na skill). |
-| **Take over with AI ▾** | Abre Claude Code ou Codex no Terminal com um `TASK.md`, ou copia o contexto para Claude/ChatGPT. Também funciona em tasks já concluídas. |
-| **Done without sending** | Conclui sem enviar nada (por exemplo, se você respondeu por fora). |
-| **Reopen** | Em tasks concluídas: volta para revisão. |
+| **Approve & send reply** | Sends the text in the **Reply** box to the original conversation. WhatsApp and Slack send it; Gmail saves a draft. Disabled if the reply is empty or still has `[fields]` to fill in. |
+| **Use as reply** | Copies the draft into the reply box so you can edit it. |
+| **Request changes** | Sends it back to Claude with your notes (and, if you want, saves the note in the skill). |
+| **Take over with AI ▾** | Opens Claude Code or Codex in Terminal with a `TASK.md`, or copies the context for Claude/ChatGPT. Also works on finished tasks. |
+| **Done without sending** | Finishes the task without sending anything (for example, if you answered another way). |
+| **Reopen** | On finished tasks: puts them back in review. |
 
-Cada task tem um id legível (por exemplo `send-q3-numbers-to-priya-a8d2`), usado na
-URL (`http://localhost:4477/#/task/<id>`) e na CLI:
+Each task has a readable id (for example `send-q3-numbers-to-priya-a8d2`). It is used in the URL
+(`http://localhost:4477/#/task/<id>`) and in the CLI:
 
 ```sh
-npx unchore done send-q3-numbers-to-priya-a8d2 --note "respondi por telefone"
+npx unchore done send-q3-numbers-to-priya-a8d2 --note "answered by phone"
 ```
 
 ---
 
-## Problemas comuns
+## Common problems
 
-| Sintoma | O que fazer |
+| Symptom | What to do |
 |---|---|
-| Card mostra "Last sync failed" | Rode `claude mcp list` e veja se o conector está `✔ Connected`. Se não estiver, reconecte no claude.ai. |
-| Sync termina rápido com "0 new" | Pode não haver mensagens novas. Para ver o que o Claude fez, inicie com `UNCHORE_DEBUG=1 npm start`. |
-| LinkedIn não lê nada | O Chrome está aberto, com a extensão Claude in Chrome ativa e logado no LinkedIn? |
-| WhatsApp: "Set UAZAPI_URL…" | Preencha o `.env` e reinicie o Unchore. |
-| Gmail não "envia" | É esperado: o conector do claude.ai cria rascunho. Abra o Gmail e envie. |
+| The card shows "Last sync failed" | Run `claude mcp list` and check that the connector shows `✔ Connected`. If it doesn't, reconnect it on claude.ai. |
+| Sync finishes quickly with "0 new" | There may be no new messages. To see what Claude did, start with `UNCHORE_DEBUG=1 npm start`. |
+| LinkedIn reads nothing | Is Chrome open, with the Claude in Chrome extension on and LinkedIn signed in? |
+| WhatsApp: "Set UAZAPI_URL…" | Fill in the `.env` file and restart Unchore. |
+| Gmail doesn't "send" | This is expected: the claude.ai connector creates a draft. Open Gmail and send it. |
