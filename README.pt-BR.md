@@ -143,7 +143,7 @@ Abra **http://localhost:4477**, vá em **Connectors**, ligue uma fonte e clique 
 primeira leitura do Gmail pega as últimas 24 horas e leva um ou dois minutos.
 
 O passo a passo de cada fonte, com prints, está em
-[`docs/connecting-sources.md`](docs/connecting-sources.md).
+[`docs/connecting-sources.pt-BR.md`](docs/connecting-sources.pt-BR.md).
 
 Se os seus servidores MCP tiverem outros nomes, defina `GMAIL_MCP_SERVER`, `SLACK_MCP_SERVER` ou
 `CALENDAR_MCP_SERVER` no `.env`. Use o nome que aparece em `claude mcp list`, trocando espaços e

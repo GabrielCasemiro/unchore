@@ -140,7 +140,7 @@ Open **http://localhost:4477**, go to **Connectors**, switch on a source and pre
 The first Gmail sync reads the last 24 hours and takes a minute or two.
 
 The step-by-step setup guide for each source, with screenshots, is in
-[`docs/connecting-sources.md`](docs/connecting-sources.md) (in Portuguese for now).
+[`docs/connecting-sources.md`](docs/connecting-sources.md).
 
 If your MCP servers have different names, set `GMAIL_MCP_SERVER`, `SLACK_MCP_SERVER` or
 `CALENDAR_MCP_SERVER` in `.env`. Use the name from `claude mcp list` with spaces and dots replaced by
