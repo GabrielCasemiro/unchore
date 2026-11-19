@@ -174,8 +174,17 @@ Os logs ficam em `~/unchore/server.log`.
 ## Segurança e privacidade
 
 - **Mensagens são tratadas como não confiáveis.** Um e-mail pode tentar dar ordens ao Claude, então
-  nenhuma execução tem acesso a terminal, arquivos ou web. Leitura e planejamento não recebem
-  ferramenta nenhuma. Um sync ou um envio só recebe as ferramentas daquela fonte.
+  o Claude não tem acesso a terminal, arquivos ou web, a não ser o que você liberar. A decisão do que
+  é tarefa nunca recebe ferramentas. Um sync ou um envio só recebe as ferramentas daquela fonte.
+- **Você escolhe o que o plano pode consultar.** Uma skill pode listar algumas consultas só de
+  leitura (uma pasta, uma consulta `sqlite3 -safe -readonly`, uma ferramenta MCP de leitura) como
+  regras de permissão do Claude Code. O plano recebe só isso, roda numa pasta vazia, e o resto é
+  recusado. Mantenha as regras estreitas.
+- **Ações esperam por você.** O plano pode propor ações (criar um evento, atualizar um registro)
+  com as ferramentas que a skill lista para ações. Cada uma só roda quando você aperta
+  **Approve & run**, e essa execução vê apenas as instruções aprovadas, não as mensagens.
+- **Ferramentas nunca vão junto com a skill.** O Export e a Library removem essas regras, então
+  uma skill compartilhada não libera nada no seu computador.
 - **Nada sai sem o seu OK.** Toda resposta espera o **Approve**.
 - **Fica no seu computador.** O servidor só escuta em `127.0.0.1` e recusa pedidos de outros sites.
   Seus dados ficam num arquivo SQLite e em arquivos Markdown em `~/unchore/`.

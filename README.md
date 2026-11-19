@@ -170,9 +170,17 @@ Logs go to `~/unchore/server.log`.
 
 ## Safety and privacy
 
-- **Messages are treated as untrusted.** An email could try to give Claude instructions, so every
-  Claude run has no shell, file or web access. Reading and planning get no tools at all. A sync or
-  reply only gets the tools for that one source.
+- **Messages are treated as untrusted.** An email could try to give Claude instructions, so Claude
+  gets no shell, file or web access unless you grant it. Deciding what is a task never gets tools.
+  A sync or reply only gets the tools for that one source.
+- **You choose what a plan may look up.** A skill can list a few read-only lookups (a folder, a
+  `sqlite3 -safe -readonly` query, one MCP read tool) as Claude Code permission rules. Planning
+  gets only those, runs in an empty folder, and anything else is refused. Keep them narrow.
+- **Actions wait for you.** A plan can propose actions (add a calendar event, update a record)
+  using tools a skill lists for actions. Each one runs only when you press **Approve & run**, and
+  that run sees only the approved instructions, not the messages.
+- **Tools never travel with a skill.** Export and the Library drop them, so a shared skill can't
+  grant anything on your computer.
 - **Nothing is sent without your OK.** Every reply waits for **Approve**.
 - **It stays on your computer.** The server only listens on `127.0.0.1` and rejects requests from
   other websites. Your data is a SQLite file and some Markdown files in `~/unchore/`.

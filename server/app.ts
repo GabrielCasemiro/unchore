@@ -9,7 +9,7 @@ import { all } from './db.ts';
 import { exportSkill, getSkill, installSkill, listLibrary, listSkills, saveSkill, skillHistory } from './skills.ts';
 import {
   acceptTask, approveTask, dismissTask, getTask, getThread, listTasks, markDone, planTask,
-  reopenTask, requestChanges, resolveTaskId, takeOver, taskEvents, undoDismiss, type TakeoverTool,
+  reopenTask, requestChanges, resolveTaskId, runAction, skipAction, takeOver, taskEvents, undoDismiss, type TakeoverTool,
 } from './tasks.ts';
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -42,6 +42,12 @@ export function createApp() {
   });
   app.post('/api/tasks/:id/plan', (c) => {
     void planTask(resolveTaskId(c.req.param('id')));
+    return c.json({ ok: true });
+  });
+  app.post('/api/tasks/:id/actions/:index/run', async (c) =>
+    c.json(await runAction(resolveTaskId(c.req.param('id')), Number(c.req.param('index')))));
+  app.post('/api/tasks/:id/actions/:index/skip', (c) => {
+    skipAction(resolveTaskId(c.req.param('id')), Number(c.req.param('index')));
     return c.json({ ok: true });
   });
   app.post('/api/tasks/:id/dismiss', async (c) => {
@@ -87,7 +93,7 @@ export function createApp() {
     return c.json({ skill, history: skillHistory(skill.slug), recent });
   });
   app.put('/api/skills/:slug', async (c) => {
-    const body = await c.req.json<{ name: string; when: string; body: string }>();
+    const body = await c.req.json<{ name: string; when: string; body: string; reads?: string[]; actions?: string[] }>();
     return c.json(saveSkill(c.req.param('slug'), body));
   });
   app.get('/api/skills/:slug/export', (c) => c.json(exportSkill(c.req.param('slug'))));

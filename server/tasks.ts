@@ -6,10 +6,19 @@ import { config } from './config.ts';
 import { connectors } from './connectors/index.ts';
 import type { SourceId, ThreadMessage } from './connectors/types.ts';
 import { all, get, logEvent, run, slugify } from './db.ts';
-import { appendRule, getSkill, listSkills, saveSkill, TASK_SKILL, workSkillsPrompt } from './skills.ts';
+import { permissionsFor } from './grants.ts';
+import { appendRule, getSkill, listSkills, saveSkill, skillGrants, TASK_SKILL, workSkillsPrompt } from './skills.ts';
 
 export type TaskStatus =
   | 'suggested' | 'accepted' | 'planning' | 'plan_ready' | 'executing' | 'done' | 'dismissed' | 'taken_over';
+
+export interface PlanAction {
+  title: string;
+  instructions: string;
+  skill_slug: string | null;
+  status?: 'proposed' | 'running' | 'done' | 'failed' | 'skipped';
+  result?: string;
+}
 
 export interface Plan {
   summary: string;
@@ -18,6 +27,12 @@ export interface Plan {
   reply: string | null;
   skill_slug: string | null;
   needs_from_me: string | null;
+  /** Lookups the plan ran and what they showed, in Claude's words. */
+  checked?: string[];
+  /** The tool calls that really happened while planning, recorded by Unchore. */
+  tools_used?: string[];
+  /** Things to do besides the reply; each runs only after the user approves it. */
+  actions?: PlanAction[];
 }
 
 export interface TaskRow {
@@ -95,9 +110,37 @@ const planSchema = {
     reply: { type: ['string', 'null'], description: 'The exact message to send back in the same conversation. Always fill it when the person expects an answer, using [placeholders] for facts you do not know. Null only when no reply is expected.' },
     skill_slug: { type: ['string', 'null'], description: 'Slug of the skill you followed' },
     needs_from_me: { type: ['string', 'null'], description: 'Anything you could not do or know and the user must provide, or null' },
+    checked: { type: 'array', items: { type: 'string' }, description: 'Each lookup you ran and what it showed, one short line each. Empty if none.' },
+    actions: {
+      type: 'array',
+      description: 'Things to do besides the reply, using only the action tools listed. Each runs only if the user approves it. Empty if none.',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Short label, e.g. "Add a reminder on Jan 5"' },
+          instructions: { type: 'string', description: 'Exact, self-contained instructions with every value needed (dates, names, ids), so it can be done without the conversation' },
+          skill_slug: { type: 'string', description: 'The skill whose action tools this uses' },
+        },
+        required: ['title', 'instructions', 'skill_slug'],
+      },
+    },
   },
-  required: ['summary', 'steps', 'draft', 'reply', 'skill_slug', 'needs_from_me'],
+  required: ['summary', 'steps', 'draft', 'reply', 'skill_slug', 'needs_from_me', 'checked', 'actions'],
 };
+
+/** What planning may look up, and which actions it may propose, from the user's skills. */
+function planTools() {
+  const reads = skillGrants('reads');
+  const actionSkills = listSkills().filter((s) => !s.system && s.actions.length);
+  const lines: string[] = [];
+  lines.push(reads.length
+    ? `You may run these lookups and nothing else: ${reads.join(', ')}. Use them when a skill says to check something before answering. They only read: never try to change anything. List in checked only the lookups you really ran, with what they showed; if a lookup failed or you couldn't run it, say so in needs_from_me instead.`
+    : 'You cannot use any tools: work only from the conversation and the skills. Set checked to [].');
+  lines.push(actionSkills.length
+    ? `Actions you may propose (the user approves each one before it runs, with only these tools): ${actionSkills.map((s) => `skill ${s.slug} can use ${s.actions.join(', ')}`).join('; ')}. Propose an action only when a skill or the user asks for it and the tools can do it. Never put sending the reply in actions.`
+    : 'No actions are available: set actions to [] and put anything that must be done in needs_from_me.');
+  return { reads, text: lines.join('\n') };
+}
 
 export interface PlanOptions {
   /** Changes the user asked for on the previous plan. */
@@ -116,14 +159,18 @@ export async function planTask(id: number, { feedback }: PlanOptions = {}) {
   const task = getTask(id);
   if (!task) throw new Error('Task not found');
   const note = acceptNote(id);
+  const tools = planTools();
   touch(id, 'planning');
   run('UPDATE tasks SET plan_error = NULL WHERE id = ?', id);
   const thread = getThread(task);
   const previous = task.plan;
   try {
+    const used: string[] = [];
     const plan = await runClaude<Plan>({
       schema: planSchema,
-      system: `You are Unchore, the user's assistant. You prepare a plan and the exact reply for a task. You cannot use any tools: work only from the conversation and the skills. Never invent facts, numbers, links or commitments that are not in the conversation: write them as [placeholders] in the reply and list them in needs_from_me. When the person expects an answer, the reply field must always contain the full message to send. Write summary, steps and needs_from_me in ${config.language}; write the reply and the draft in the language of the conversation.\n\nThe user's skills:\n\n${workSkillsPrompt()}`,
+      permissions: tools.reads.length ? permissionsFor(tools.reads, 'reads') : undefined,
+      onToolUse: (name, input) => { if (name !== 'ToolSearch' && name !== 'StructuredOutput') used.push(toolLabel(name, input)); },
+      system: `You are Unchore, the user's assistant. You prepare a plan and the exact reply for a task. You never act: you only read, and propose. ${tools.text}\n\nNever invent facts, numbers, links or commitments that are not in the conversation: write them as [placeholders] in the reply and list them in needs_from_me. When the person expects an answer, the reply field must always contain the full message to send. Write summary, steps and needs_from_me in ${config.language}; write the reply and the draft in the language of the conversation.\n\nThe user's skills:\n\n${workSkillsPrompt()}`,
       prompt: `Today is ${new Date().toISOString().slice(0, 10)}.
 Task: ${task.title}
 What is asked: ${task.summary ?? ''}
@@ -132,6 +179,8 @@ Source: ${connectors[task.source].name}${task.channel ? ` · ${task.channel}` : 
 ${untrusted('conversation', thread.map((m) => `${m.received_at} ${m.is_from_me ? 'ME' : m.from_name}: ${m.text}`).join('\n'))}
 ${note ? `\nThe user's note when accepting this task — follow it:\n${note}\n` : ''}${previous && feedback ? `\nYour previous plan:\n${JSON.stringify(previous, null, 2)}\n\nThe user asked for these changes — apply them:\n${feedback}` : ''}`,
     });
+    plan.actions = (plan.actions ?? []).map((a) => ({ ...a, status: 'proposed' as const }));
+    plan.tools_used = used;
     run('UPDATE tasks SET plan = ? WHERE id = ?', JSON.stringify(plan), id);
     touch(id, 'plan_ready');
     logEvent('plan_ready', { feedback: feedback ?? null }, id);
@@ -141,6 +190,77 @@ ${note ? `\nThe user's note when accepting this task — follow it:\n${note}\n` 
     touch(id, previous ? 'plan_ready' : 'accepted');
     logEvent('plan_failed', { error: message }, id);
   }
+}
+
+/** A short, readable label for a tool call, e.g. "list_events" or "Bash: sqlite3 -safe …". */
+function toolLabel(name: string, input: Record<string, unknown>) {
+  const short = name.startsWith('mcp__') ? name.split('__').pop()! : name;
+  const detail = typeof input.command === 'string' ? input.command : typeof input.file_path === 'string' ? input.file_path : typeof input.url === 'string' ? input.url : typeof input.pattern === 'string' ? input.pattern : '';
+  return detail ? `${short}: ${detail.slice(0, 120)}` : short;
+}
+
+const savePlan = (id: number, plan: Plan) => run('UPDATE tasks SET plan = ? WHERE id = ?', JSON.stringify(plan), id);
+
+function actionAt(id: number, index: number) {
+  const task = getTask(id);
+  const action = task?.plan?.actions?.[index];
+  if (!task?.plan || !action) throw new Error('No such action');
+  return { task, plan: task.plan, action };
+}
+
+const actionSchema = {
+  type: 'object',
+  properties: {
+    done: { type: 'boolean', description: 'True only if the action was carried out exactly as written' },
+    detail: { type: 'string', description: 'One sentence: what was done, or why nothing was done' },
+  },
+  required: ['done', 'detail'],
+};
+
+/** Runs one action the user approved, with only the tools its skill grants for actions. */
+export async function runAction(id: number, index: number) {
+  const { task, plan, action } = actionAt(id, index);
+  if (action.status === 'running' || action.status === 'done') throw new Error('This action already ran');
+  const skill = action.skill_slug ? getSkill(action.skill_slug) : null;
+  if (!skill?.actions.length) throw new Error(`The skill ${action.skill_slug ?? '(none)'} doesn't allow any actions`);
+  action.status = 'running';
+  savePlan(id, plan);
+  logEvent('action_approved', { title: action.title }, id);
+  try {
+    // Only the approved instructions go in: the conversation itself is never shown to the acting run.
+    const perms = permissionsFor([...skill.actions, ...skill.reads], 'actions');
+    // Tools that change something: an action that never called one did nothing.
+    const acting = new Set([...perms.rules.filter((r) => r.startsWith('mcp__') && skill.actions.includes(r)), ...['Bash', 'Edit', 'Write'].filter((t) => skill.actions.some((g) => g.startsWith(`${t}(`)))]);
+    let acted = false;
+    const r = await runClaude<{ done: boolean; detail: string }>({
+      schema: actionSchema,
+      permissions: perms,
+      onToolUse: (name) => { if (acting.has(name)) acted = true; },
+      system: 'You carry out one action that the user approved, exactly as written, and nothing else. Use only the tools you have. If you cannot do it exactly as written, do nothing and say why.',
+      prompt: `Today is ${new Date().toISOString().slice(0, 10)}.\nTask: ${task.title}\nApproved action: ${action.title}\n\n${action.instructions}`,
+    });
+    action.status = r.done && acted ? 'done' : 'failed';
+    action.result = r.done && !acted ? `No action tool was called, so nothing was done. ${r.detail}` : r.detail;
+  } catch (err) {
+    action.status = 'failed';
+    action.result = err instanceof Error ? err.message : String(err);
+  }
+  const latest = getTask(id)?.plan;
+  // Keep the result even if the plan was redone meanwhile, as long as it is the same action.
+  if (latest?.actions?.[index]?.instructions === action.instructions) {
+    latest.actions[index] = action;
+    savePlan(id, latest);
+  }
+  logEvent(action.status === 'done' ? 'action_done' : 'action_failed', { title: action.title, detail: action.result }, id);
+  return action;
+}
+
+export function skipAction(id: number, index: number) {
+  const { plan, action } = actionAt(id, index);
+  if (action.status === 'running' || action.status === 'done') throw new Error('This action already ran');
+  action.status = 'skipped';
+  savePlan(id, plan);
+  logEvent('action_skipped', { title: action.title }, id);
 }
 
 export function acceptTask(id: number, note?: string) {

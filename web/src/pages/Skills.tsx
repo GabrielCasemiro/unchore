@@ -67,9 +67,12 @@ function Editor({ skill, isNew, onSaved }: { skill?: Skill; isNew?: boolean; onS
   const [name, setName] = useState(skill?.name ?? '');
   const [when, setWhen] = useState(skill?.when ?? '');
   const [body, setBody] = useState(skill?.body ?? '# New skill\n\n- \n');
+  const [reads, setReads] = useState((skill?.reads ?? []).join('\n'));
+  const [actions, setActions] = useState((skill?.actions ?? []).join('\n'));
+  const lines = (s: string) => s.split('\n').map((l) => l.trim()).filter(Boolean);
   const [extra, setExtra] = useState<Awaited<ReturnType<typeof api.skill>> | null>(null);
   useEffect(() => { if (skill) api.skill(skill.slug).then(setExtra); }, [skill]);
-  const dirty = !skill || name !== skill.name || when !== skill.when || body !== skill.body;
+  const dirty = !skill || name !== skill.name || when !== skill.when || body !== skill.body || lines(reads).join('\n') !== skill.reads.join('\n') || lines(actions).join('\n') !== skill.actions.join('\n');
   const slug = skill?.slug ?? name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   return (
@@ -83,10 +86,27 @@ function Editor({ skill, isNew, onSaved }: { skill?: Skill; isNew?: boolean; onS
         <span>Instructions <span className="sub" style={{ fontWeight: 400 }}>Markdown · {skill ? skill.file : `skills/${slug || '…'}.md`}</span></span>
         <textarea className="textarea code" rows={18} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>
+      {!skill?.system && (
+        <details className="grants" open={!!(skill?.reads.length || skill?.actions.length)}>
+          <summary>Tools <span className="sub" style={{ fontWeight: 400 }}>only on this computer, never shared or exported</span></summary>
+          <p className="sub" style={{ margin: 0 }}>
+            One Claude Code permission rule per line. Keep them narrow: messages come from anyone, and a plan could be steered to anything listed here.
+          </p>
+          <label className="field">
+            <span>Lookups a plan may run on its own <span className="sub" style={{ fontWeight: 400 }}>read only, e.g. Read(~/work/clients/**) or Bash(sqlite3 -safe -readonly ~/work/crm.db:*)</span></span>
+            <textarea className="textarea code" rows={3} value={reads} onChange={(e) => setReads(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Tools for actions <span className="sub" style={{ fontWeight: 400 }}>the plan proposes, you approve each one, e.g. mcp__claude_ai_Google_Calendar__create_event</span></span>
+            <textarea className="textarea code" rows={2} value={actions} onChange={(e) => setActions(e.target.value)} />
+          </label>
+          {!!skill?.grantProblems.length && <div className="notice err">Ignored: {skill.grantProblems.join(' · ')}</div>}
+        </details>
+      )}
       <div className="actions" style={{ alignItems: 'center' }}>
         <button type="button" className="btn dark" style={{ flex: '0 0 auto' }} disabled={!dirty || !name.trim() || !slug} onClick={async () => {
           try {
-            const s = await api.saveSkill(slug, { name, when, body });
+            const s = await api.saveSkill(slug, { name, when, body, reads: lines(reads), actions: lines(actions) });
             toast(`Saved ${s.name} v${s.version}. The next task will use it.`);
             onSaved(s.slug);
           } catch (e) {

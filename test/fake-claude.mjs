@@ -24,7 +24,14 @@ if (props.includes('decisions')) {
     }),
   };
 } else if (props.includes('steps')) {
-  out = { summary: 'Reply with the price', steps: ['Check the price list', 'Reply'], draft: null, reply: 'O kit custa R$ 49,90.', skill_slug: 'writing-replies', needs_from_me: null };
+  const canAct = args.join(' ').includes('Actions you may propose');
+  out = {
+    summary: 'Reply with the price', steps: ['Check the price list', 'Reply'], draft: null, reply: 'O kit custa R$ 49,90.', skill_slug: 'writing-replies', needs_from_me: null,
+    checked: canAct ? ['Read the notes: the client asked to talk in January'] : [],
+    actions: canAct ? [{ title: 'Add a reminder on Jan 5', instructions: 'Create a calendar event on 2027-01-05 at 09:00 titled "Follow up with Ana".', skill_slug: 'scheduling' }] : [],
+  };
+} else if (props.includes('done') && props.includes('detail')) {
+  out = { done: true, detail: 'Created the event' };
 } else if (props.includes('rule')) {
   out = { rule: 'Order status notifications are not tasks' };
 } else if (props.includes('rescan')) {
@@ -44,4 +51,13 @@ if (props.includes('decisions')) {
 } else {
   out = 'ok';
 }
-process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: typeof out === 'string' ? out : JSON.stringify(out), structured_output: typeof out === 'string' ? undefined : out }));
+const result = { type: 'result', subtype: 'success', is_error: false, result: typeof out === 'string' ? out : JSON.stringify(out), structured_output: typeof out === 'string' ? undefined : out };
+if (args.includes('stream-json')) {
+  // Runs with granted tools: pretend to call the first allowed tool, unless FAKE_NO_TOOL_USE is set.
+  const allowed = (args[args.indexOf('--allowedTools') + 1] ?? '').split(',');
+  const tool = props.includes('done') ? allowed.find((t) => t.startsWith('mcp__')) : allowed[0]?.replace(/\(.*$/, '');
+  const calls = tool && !process.env.FAKE_NO_TOOL_USE ? [{ type: 'tool_use', name: tool, input: { file_path: '/notes/ana.md' } }] : [];
+  process.stdout.write(JSON.stringify({ type: 'system', subtype: 'init' }) + '\n' + JSON.stringify({ type: 'assistant', message: { content: calls } }) + '\n' + JSON.stringify(result) + '\n');
+} else {
+  process.stdout.write(JSON.stringify(result));
+}

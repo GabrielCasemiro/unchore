@@ -22,6 +22,13 @@ const STATUS: Record<string, [string, string]> = {
   dismissed: ['Not a task', ''],
 };
 
+const ACTION_CHIP: Record<string, [string, string]> = {
+  running: ['Running…', 'violet'],
+  done: ['Done', 'green'],
+  failed: ['Failed', 'high'],
+  skipped: ['Skipped', ''],
+};
+
 // Claude leaves [placeholders] for facts it doesn't know; never send those.
 const findPlaceholders = (text: string) => text.match(/\[[^\]\n]{3,}\]/g) ?? [];
 
@@ -97,6 +104,10 @@ const EVENT_LABEL: Record<string, string> = {
   done: 'Done',
   dismissed: 'Marked not a task',
   expired: 'Removed: the event is over',
+  action_approved: 'Action approved',
+  action_done: 'Action done',
+  action_failed: 'Action failed',
+  action_skipped: 'Action skipped',
 };
 
 function History({ data }: { data: TaskDetail }) {
@@ -111,6 +122,7 @@ function History({ data }: { data: TaskDetail }) {
             {typeof e.detail?.detail === 'string' && ` · ${e.detail.detail}`}
             {typeof e.detail?.error === 'string' && ` · ${e.detail.error}`}
             {typeof e.detail?.tool === 'string' && ` · ${e.detail.tool}`}
+            {typeof e.detail?.title === 'string' && ` · ${e.detail.title}`}
             {typeof e.detail?.note === 'string' && e.detail.note && ` · “${e.detail.note}”`}
           </li>
         ))}
@@ -230,7 +242,40 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
             <h3 style={{ margin: 0, fontSize: 14 }}>How I'll solve it</h3>
             <ol className="steps">{plan.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
           </div>
+          {!!(plan.checked?.length || plan.tools_used?.length) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>What I checked</h3>
+              {!!plan.checked?.length && <ul className="checked">{plan.checked.map((c, i) => <li key={i}>{c}</li>)}</ul>}
+              {plan.tools_used && (plan.tools_used.length
+                ? <details className="sub" style={{ fontSize: 12 }}><summary style={{ cursor: 'pointer' }}>{plan.tools_used.length} tool call{plan.tools_used.length > 1 ? 's' : ''} recorded by Unchore</summary><ul className="checked" style={{ marginTop: 4 }}>{plan.tools_used.map((t, i) => <li key={i}><code>{t}</code></li>)}</ul></details>
+                : !!plan.checked?.length && <div className="notice warn">Unchore saw no lookups run for this plan, so treat these as unverified.</div>)}
+            </div>
+          )}
           {plan.needs_from_me && <div className="notice warn"><strong>Needs you:</strong> {plan.needs_from_me}</div>}
+          {!!plan.actions?.length && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>Actions <span className="sub" style={{ fontWeight: 400 }}>each one runs only when you approve it</span></h3>
+              {plan.actions.map((a, i) => (
+                <div key={i} className="action-row" style={{ flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <strong style={{ flex: 1 }}>{a.title}</strong>
+                    {a.status && a.status !== 'proposed' && <span className={`chip ${ACTION_CHIP[a.status][1]}`}>{ACTION_CHIP[a.status][0]}</span>}
+                  </div>
+                  <p style={{ margin: 0, fontSize: 13, whiteSpace: 'pre-wrap', color: 'var(--ink-2)' }}>{a.instructions}</p>
+                  {a.result && <span style={{ fontSize: 12, color: a.status === 'failed' ? '#8a2008' : 'var(--muted)' }}>{a.result}</span>}
+                  {(a.status === 'proposed' || a.status === 'failed') && status !== 'done' && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" className="btn dark small" disabled={busy} onClick={() => act(async () => {
+                        const r = await api.runAction(task.uid, i);
+                        toast(r.status === 'done' ? `Done: ${r.title}` : `Couldn't do it: ${r.result ?? ''}`);
+                      })}>{a.status === 'failed' ? 'Try again' : 'Approve & run'}</button>
+                      {a.status === 'proposed' && <button type="button" className="btn ghost small" disabled={busy} onClick={() => act(() => api.skipAction(task.uid, i))}>Skip</button>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           {plan.draft && (
             <article className="draft">
               <div className="label">Draft</div>
