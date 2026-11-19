@@ -242,10 +242,13 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
             <h3 style={{ margin: 0, fontSize: 14 }}>How I'll solve it</h3>
             <ol className="steps">{plan.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
           </div>
-          {!!plan.checked?.length && (
+          {!!(plan.checked?.length || plan.tools_used?.length) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <h3 style={{ margin: 0, fontSize: 14 }}>What I checked</h3>
-              <ul className="checked">{plan.checked.map((c, i) => <li key={i}>{c}</li>)}</ul>
+              {!!plan.checked?.length && <ul className="checked">{plan.checked.map((c, i) => <li key={i}>{c}</li>)}</ul>}
+              {plan.tools_used && (plan.tools_used.length
+                ? <details className="sub" style={{ fontSize: 12 }}><summary style={{ cursor: 'pointer' }}>{plan.tools_used.length} tool call{plan.tools_used.length > 1 ? 's' : ''} recorded by Unchore</summary><ul className="checked" style={{ marginTop: 4 }}>{plan.tools_used.map((t, i) => <li key={i}><code>{t}</code></li>)}</ul></details>
+                : !!plan.checked?.length && <div className="notice warn">Unchore saw no lookups run for this plan, so treat these as unverified.</div>)}
             </div>
           )}
           {plan.needs_from_me && <div className="notice warn"><strong>Needs you:</strong> {plan.needs_from_me}</div>}

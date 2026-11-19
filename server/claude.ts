@@ -14,6 +14,8 @@ export interface ClaudeRun {
   chrome?: boolean;
   /** Extra tools the user granted in a skill (see grants.ts). */
   permissions?: Permissions;
+  /** Called for every tool call the run makes (only for runs with permissions). */
+  onToolUse?: (name: string, input: Record<string, unknown>) => void;
   model?: string;
   timeoutMs?: number;
 }
@@ -37,7 +39,9 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
 
 /** Builds the CLI arguments. Exported for tests. */
 export function claudeArgs(run: ClaudeRun): string[] {
-  const args = ['-p', '--output-format', 'json', '--no-session-persistence'];
+  // Runs with granted tools stream their events, so we know which tools really ran.
+  const args = run.permissions ? ['-p', '--output-format', 'stream-json', '--verbose'] : ['-p', '--output-format', 'json'];
+  args.push('--no-session-persistence');
   // Built-in tools (Bash, Edit, WebFetch…) are off unless the user granted one in a
   // skill: message content is untrusted, so a run only gets what it was explicitly given.
   const perms = run.permissions;
@@ -99,7 +103,17 @@ export function runClaude<T>(run: ClaudeRun): Promise<T> {
           clearTimeout(timer);
           let parsed: { is_error?: boolean; subtype?: string; result?: string; structured_output?: unknown; num_turns?: number; permission_denials?: unknown[] };
           try {
-            parsed = JSON.parse(out);
+            if (run.permissions) {
+              const events = out.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+              for (const e of events) {
+                if (e.type !== 'assistant') continue;
+                for (const block of e.message?.content ?? []) if (block.type === 'tool_use') run.onToolUse?.(block.name, block.input ?? {});
+              }
+              parsed = events.findLast((e) => e.type === 'result');
+              if (!parsed) throw new Error('no result');
+            } else {
+              parsed = JSON.parse(out);
+            }
           } catch {
             return reject(new ClaudeError(`Claude exited ${code}: ${(err || out).trim().slice(0, 500)}`));
           }

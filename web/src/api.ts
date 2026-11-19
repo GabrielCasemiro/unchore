@@ -36,6 +36,7 @@ export interface Plan {
   skill_slug: string | null;
   needs_from_me: string | null;
   checked?: string[];
+  tools_used?: string[];
   actions?: PlanAction[];
 }
 

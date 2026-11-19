@@ -27,8 +27,10 @@ export interface Plan {
   reply: string | null;
   skill_slug: string | null;
   needs_from_me: string | null;
-  /** Lookups the plan ran and what they showed. */
+  /** Lookups the plan ran and what they showed, in Claude's words. */
   checked?: string[];
+  /** The tool calls that really happened while planning, recorded by Unchore. */
+  tools_used?: string[];
   /** Things to do besides the reply; each runs only after the user approves it. */
   actions?: PlanAction[];
 }
@@ -132,7 +134,7 @@ function planTools() {
   const actionSkills = listSkills().filter((s) => !s.system && s.actions.length);
   const lines: string[] = [];
   lines.push(reads.length
-    ? `You may run these lookups and nothing else: ${reads.join(', ')}. Use them when a skill says to check something before answering. They only read: never try to change anything. List each lookup and what it showed in checked.`
+    ? `You may run these lookups and nothing else: ${reads.join(', ')}. Use them when a skill says to check something before answering. They only read: never try to change anything. List in checked only the lookups you really ran, with what they showed; if a lookup failed or you couldn't run it, say so in needs_from_me instead.`
     : 'You cannot use any tools: work only from the conversation and the skills. Set checked to [].');
   lines.push(actionSkills.length
     ? `Actions you may propose (the user approves each one before it runs, with only these tools): ${actionSkills.map((s) => `skill ${s.slug} can use ${s.actions.join(', ')}`).join('; ')}. Propose an action only when a skill or the user asks for it and the tools can do it. Never put sending the reply in actions.`
@@ -163,9 +165,11 @@ export async function planTask(id: number, { feedback }: PlanOptions = {}) {
   const thread = getThread(task);
   const previous = task.plan;
   try {
+    const used: string[] = [];
     const plan = await runClaude<Plan>({
       schema: planSchema,
       permissions: tools.reads.length ? permissionsFor(tools.reads, 'reads') : undefined,
+      onToolUse: (name, input) => { if (name !== 'ToolSearch' && name !== 'StructuredOutput') used.push(toolLabel(name, input)); },
       system: `You are Unchore, the user's assistant. You prepare a plan and the exact reply for a task. You never act: you only read, and propose. ${tools.text}\n\nNever invent facts, numbers, links or commitments that are not in the conversation: write them as [placeholders] in the reply and list them in needs_from_me. When the person expects an answer, the reply field must always contain the full message to send. Write summary, steps and needs_from_me in ${config.language}; write the reply and the draft in the language of the conversation.\n\nThe user's skills:\n\n${workSkillsPrompt()}`,
       prompt: `Today is ${new Date().toISOString().slice(0, 10)}.
 Task: ${task.title}
@@ -176,6 +180,7 @@ ${untrusted('conversation', thread.map((m) => `${m.received_at} ${m.is_from_me ?
 ${note ? `\nThe user's note when accepting this task — follow it:\n${note}\n` : ''}${previous && feedback ? `\nYour previous plan:\n${JSON.stringify(previous, null, 2)}\n\nThe user asked for these changes — apply them:\n${feedback}` : ''}`,
     });
     plan.actions = (plan.actions ?? []).map((a) => ({ ...a, status: 'proposed' as const }));
+    plan.tools_used = used;
     run('UPDATE tasks SET plan = ? WHERE id = ?', JSON.stringify(plan), id);
     touch(id, 'plan_ready');
     logEvent('plan_ready', { feedback: feedback ?? null }, id);
@@ -185,6 +190,13 @@ ${note ? `\nThe user's note when accepting this task — follow it:\n${note}\n` 
     touch(id, previous ? 'plan_ready' : 'accepted');
     logEvent('plan_failed', { error: message }, id);
   }
+}
+
+/** A short, readable label for a tool call, e.g. "list_events" or "Bash: sqlite3 -safe …". */
+function toolLabel(name: string, input: Record<string, unknown>) {
+  const short = name.startsWith('mcp__') ? name.split('__').pop()! : name;
+  const detail = typeof input.command === 'string' ? input.command : typeof input.file_path === 'string' ? input.file_path : typeof input.url === 'string' ? input.url : typeof input.pattern === 'string' ? input.pattern : '';
+  return detail ? `${short}: ${detail.slice(0, 120)}` : short;
 }
 
 const savePlan = (id: number, plan: Plan) => run('UPDATE tasks SET plan = ? WHERE id = ?', JSON.stringify(plan), id);
@@ -216,14 +228,19 @@ export async function runAction(id: number, index: number) {
   logEvent('action_approved', { title: action.title }, id);
   try {
     // Only the approved instructions go in: the conversation itself is never shown to the acting run.
+    const perms = permissionsFor([...skill.actions, ...skill.reads], 'actions');
+    // Tools that change something: an action that never called one did nothing.
+    const acting = new Set([...perms.rules.filter((r) => r.startsWith('mcp__') && skill.actions.includes(r)), ...['Bash', 'Edit', 'Write'].filter((t) => skill.actions.some((g) => g.startsWith(`${t}(`)))]);
+    let acted = false;
     const r = await runClaude<{ done: boolean; detail: string }>({
       schema: actionSchema,
-      permissions: permissionsFor([...skill.actions, ...skill.reads], 'actions'),
+      permissions: perms,
+      onToolUse: (name) => { if (acting.has(name)) acted = true; },
       system: 'You carry out one action that the user approved, exactly as written, and nothing else. Use only the tools you have. If you cannot do it exactly as written, do nothing and say why.',
       prompt: `Today is ${new Date().toISOString().slice(0, 10)}.\nTask: ${task.title}\nApproved action: ${action.title}\n\n${action.instructions}`,
     });
-    action.status = r.done ? 'done' : 'failed';
-    action.result = r.detail;
+    action.status = r.done && acted ? 'done' : 'failed';
+    action.result = r.done && !acted ? `No action tool was called, so nothing was done. ${r.detail}` : r.detail;
   } catch (err) {
     action.status = 'failed';
     action.result = err instanceof Error ? err.message : String(err);

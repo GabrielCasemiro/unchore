@@ -215,6 +215,7 @@ test('grants: only narrow, user-written tools become CLI permissions', async () 
 
   const perms = permissionsFor(['Read(~/notes/**)', 'Bash(sqlite3 -safe -readonly ~/crm.db:*)', 'Write(~/x)'], 'reads');
   assert.deepEqual(perms.tools, ['Read', 'Bash'], 'Write is dropped for lookups');
+  assert.ok(permissionsFor(['mcp__claude_ai_Google_Calendar__list_events'], 'reads').tools.includes('ToolSearch'), 'MCP tools load through ToolSearch');
   assert.deepEqual(perms.dirs, [`${homedir()}/notes`]);
   const args = claudeArgs({ prompt: 'x', permissions: perms });
   assert.equal(args[args.indexOf('--tools') + 1], 'Read,Bash');
@@ -244,6 +245,7 @@ test('plans run granted lookups and propose actions; an action runs only when ap
 
   const plan = (await api('/tasks/action-test-aaaa')).task.plan;
   assert.deepEqual(plan.checked, ['Read the notes: the client asked to talk in January']);
+  assert.deepEqual(plan.tools_used, ['Read: /notes/ana.md'], 'Unchore records the tool calls that really ran');
   assert.equal(plan.actions[0].status, 'proposed');
 
   const done = await api('/tasks/action-test-aaaa/actions/0/run', 'POST');
@@ -256,6 +258,15 @@ test('plans run granted lookups and propose actions; an action runs only when ap
   assert.equal((await api('/tasks/action-test-aaaa')).task.plan.actions[0].status, 'done');
   const again = await app.fetch(new Request('http://localhost/api/tasks/action-test-aaaa/actions/0/run', { method: 'POST' }));
   assert.equal(again.status, 400, 'an action never runs twice');
+
+  // "Done" without calling an action tool is not done.
+  await api('/tasks/action-test-aaaa/plan', 'POST');
+  await waitFor(async () => (await api('/tasks/action-test-aaaa')).task.plan?.actions?.[0]?.status === 'proposed');
+  process.env.FAKE_NO_TOOL_USE = '1';
+  const claimed = await api('/tasks/action-test-aaaa/actions/0/run', 'POST');
+  delete process.env.FAKE_NO_TOOL_USE;
+  assert.equal(claimed.status, 'failed');
+  assert.match(claimed.result, /No action tool was called/);
 
   const exported = await api('/skills/scheduling/export');
   assert.doesNotMatch(exported.markdown, /reads:|actions:|create_event/);

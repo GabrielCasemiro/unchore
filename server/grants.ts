@@ -93,6 +93,9 @@ export function permissionsFor(grants: string[], kind: GrantKind): Permissions {
       perms.rules.push(grant);
     }
   }
+  // Claude Code loads MCP tools on demand through ToolSearch. It only loads schemas;
+  // calling a tool is still decided by the rules above.
+  if (perms.mcp) perms.tools.push('ToolSearch');
   const fileTools = perms.tools.filter((t) => FILE_TOOLS.includes(t));
   for (const dir of perms.dirs) {
     for (const tool of fileTools) for (const secret of SECRETS) perms.denied.push(`${tool}(/${dir}/**/${secret})`);
