@@ -99,9 +99,27 @@ const planSchema = {
   required: ['summary', 'steps', 'draft', 'reply', 'skill_slug', 'needs_from_me'],
 };
 
-export async function planTask(id: number, feedback?: string) {
+export interface PlanOptions {
+  /** Changes the user asked for on the previous plan. */
+  feedback?: string;
+  /** A skill the user picked to plan with. */
+  skill?: string;
+}
+
+/** The note the user added when accepting, kept for every later plan of the task. */
+function acceptNote(id: number): string | null {
+  const e = get<{ detail: string | null }>("SELECT detail FROM events WHERE task_id = ? AND kind = 'accepted' ORDER BY id DESC LIMIT 1", id);
+  const note = e?.detail ? (JSON.parse(e.detail) as { note?: string } | null)?.note : undefined;
+  return note?.trim() || null;
+}
+
+// Planning never acts: the run gets no tools, and anything it proposes waits for the user's approval.
+export async function planTask(id: number, { feedback, skill: skillSlug }: PlanOptions = {}) {
   const task = getTask(id);
   if (!task) throw new Error('Task not found');
+  const picked = skillSlug ? getSkill(skillSlug) : null;
+  const skill = picked && !picked.system ? picked : null;
+  const note = acceptNote(id);
   touch(id, 'planning');
   run('UPDATE tasks SET plan_error = NULL WHERE id = ?', id);
   const thread = getThread(task);
@@ -109,18 +127,18 @@ export async function planTask(id: number, feedback?: string) {
   try {
     const plan = await runClaude<Plan>({
       schema: planSchema,
-      system: `You are Unchore, the user's assistant. You prepare a plan and the exact reply for a task. You cannot use any tools: work only from the conversation and the skills. Never invent facts, numbers, links or commitments that are not in the conversation: write them as [placeholders] in the reply and list them in needs_from_me. When the person expects an answer, the reply field must always contain the full message to send.\n\nThe user's skills:\n\n${workSkillsPrompt()}`,
+      system: `You are Unchore, the user's assistant. You prepare a plan and the exact reply for a task. You cannot use any tools: work only from the conversation and the skills. Never invent facts, numbers, links or commitments that are not in the conversation: write them as [placeholders] in the reply and list them in needs_from_me. When the person expects an answer, the reply field must always contain the full message to send. Write summary, steps and needs_from_me in ${config.language}; write the reply and the draft in the language of the conversation.\n\nThe user's skills:\n\n${workSkillsPrompt()}`,
       prompt: `Today is ${new Date().toISOString().slice(0, 10)}.
 Task: ${task.title}
 What is asked: ${task.summary ?? ''}
 Source: ${connectors[task.source].name}${task.channel ? ` · ${task.channel}` : ''} · requester: ${task.requester ?? 'unknown'} · due: ${task.due ?? 'not set'}${task.source === 'calendar' ? '\nThis is a calendar event: plan how to prepare for it (agenda, questions, materials) and set reply to null.' : ''}
 
 ${untrusted('conversation', thread.map((m) => `${m.received_at} ${m.is_from_me ? 'ME' : m.from_name}: ${m.text}`).join('\n'))}
-${previous && feedback ? `\nYour previous plan:\n${JSON.stringify(previous, null, 2)}\n\nThe user asked for these changes — apply them:\n${feedback}` : ''}`,
+${note ? `\nThe user's note when accepting this task — follow it:\n${note}\n` : ''}${skill ? `\nThe user asked you to plan this task with the skill "${skill.name}" (slug: ${skill.slug}). Follow it closely and set skill_slug to "${skill.slug}".\n` : ''}${previous && feedback ? `\nYour previous plan:\n${JSON.stringify(previous, null, 2)}\n\nThe user asked for these changes — apply them:\n${feedback}` : ''}`,
     });
     run('UPDATE tasks SET plan = ? WHERE id = ?', JSON.stringify(plan), id);
     touch(id, 'plan_ready');
-    logEvent('plan_ready', { feedback: feedback ?? null }, id);
+    logEvent('plan_ready', { feedback: feedback ?? null, skill: skill?.slug ?? null }, id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     run('UPDATE tasks SET plan_error = ? WHERE id = ?', message, id);
@@ -129,9 +147,9 @@ ${previous && feedback ? `\nYour previous plan:\n${JSON.stringify(previous, null
   }
 }
 
-export function acceptTask(id: number) {
+export function acceptTask(id: number, note?: string) {
   touch(id, 'accepted');
-  logEvent('accepted', null, id);
+  logEvent('accepted', note?.trim() ? { note: note.trim() } : null, id);
   void planTask(id);
 }
 
@@ -172,7 +190,7 @@ export function requestChanges(id: number, feedback: string, updateSkill: boolea
     skill = slug;
   }
   logEvent('changes_requested', { feedback, skill }, id);
-  void planTask(id, feedback);
+  void planTask(id, { feedback });
   return { skill };
 }
 
@@ -196,7 +214,7 @@ export async function dismissTask(id: number, reason: string, note?: string) {
   const last = getThread(task).filter((m) => !m.is_from_me).pop();
   const { rule } = await runClaude<{ rule: string }>({
     schema: ruleSchema,
-    system: 'You maintain the rules that decide which incoming messages are tasks. Write one general, reusable rule. Do not quote the message.',
+    system: `You maintain the rules that decide which incoming messages are tasks. Write one general, reusable rule in ${config.language}. Do not quote the message.`,
     prompt: `This message was wrongly turned into a task "${task.title}".
 Source: ${task.source}${task.channel ? ` · ${task.channel}` : ''}, sender: ${task.requester ?? 'unknown'}.
 User's reason: ${reason}${note ? `. User's note: ${note}` : ''}

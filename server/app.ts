@@ -35,12 +35,16 @@ export function createApp() {
     if (!task) return c.json({ error: 'Not found' }, 404);
     return c.json({ task, thread: getThread(task), events: taskEvents(task.id) });
   });
-  app.post('/api/tasks/:id/accept', (c) => {
-    acceptTask(resolveTaskId(c.req.param('id')));
+  app.post('/api/tasks/:id/accept', async (c) => {
+    const { note } = await c.req.json<{ note?: string }>().catch(() => ({ note: undefined }));
+    acceptTask(resolveTaskId(c.req.param('id')), note);
     return c.json({ ok: true });
   });
-  app.post('/api/tasks/:id/plan', (c) => {
-    void planTask(resolveTaskId(c.req.param('id')));
+  app.post('/api/tasks/:id/plan', async (c) => {
+    const { skill } = await c.req.json<{ skill?: string }>().catch(() => ({ skill: undefined }));
+    const id = resolveTaskId(c.req.param('id'));
+    if (skill && !getSkill(skill)) return c.json({ error: `No skill called ${skill}` }, 400);
+    void planTask(id, { skill });
     return c.json({ ok: true });
   });
   app.post('/api/tasks/:id/dismiss', async (c) => {

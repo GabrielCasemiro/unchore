@@ -104,8 +104,8 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
 export const api = {
   tasks: (done: boolean) => request<TaskListItem[]>(`/tasks${done ? '?done=1' : ''}`),
   task: (ref: string) => request<TaskDetail>(`/tasks/${ref}`),
-  accept: (ref: string) => request(`/tasks/${ref}/accept`, 'POST'),
-  replan: (ref: string) => request(`/tasks/${ref}/plan`, 'POST'),
+  accept: (ref: string, note?: string) => request(`/tasks/${ref}/accept`, 'POST', { note }),
+  replan: (ref: string, skill?: string) => request(`/tasks/${ref}/plan`, 'POST', { skill }),
   dismiss: (ref: string, reason: string, note?: string) =>
     request<{ rule: string | null; version: number | null; previousBody: string | null }>(`/tasks/${ref}/dismiss`, 'POST', { reason, note }),
   undoDismiss: (ref: string, previousBody: string | null) => request(`/tasks/${ref}/undo-dismiss`, 'POST', { previousBody }),
