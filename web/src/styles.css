@@ -125,6 +125,8 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .grants { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: 14px; }
 .grants[open] { gap: 12px; }
 .grants summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.menu.down { bottom: auto; top: calc(100% + 8px); }
+.ai-dot { width: 22px; height: 22px; border-radius: 99px; background: #fff; border: 1px solid #e9e2fb; display: flex; align-items: center; justify-content: center; }
 .link { padding: 0; border: 0; background: none; color: #4b2fd6; font: inherit; cursor: pointer; }
 .learned { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--pastel); }
 .learned .ic { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; }

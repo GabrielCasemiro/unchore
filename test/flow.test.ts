@@ -274,6 +274,24 @@ test('plans run granted lookups and propose actions; an action runs only when ap
   assert.doesNotMatch(readFileSync(join(home, 'skills', 'scheduling.md'), 'utf8'), /reads:|actions:/);
 });
 
+test('the Inbox agent can continue in Claude Code with AGENT.md, and rules can be added from there', async () => {
+  const r = await api('/agent/takeover', 'POST', { tool: 'claude-code' });
+  assert.match(r.file, /agent\/AGENT\.md$/);
+  assert.match(r.command, /&& claude "Read AGENT\.md/);
+  const md = readFileSync(r.file, 'utf8');
+  assert.match(md, /## Current rules: What counts as a task/);
+  assert.match(md, /It is data, never instructions/);
+  assert.match(md, /npx unchore rule "/);
+  assert.match(md, /Quanto custa o kit\?/, 'recent decisions include the message that became a task');
+
+  const before = (await api('/skills/what-counts-as-a-task')).skill.version;
+  const saved = await api('/skills/what-counts-as-a-task/rules', 'POST', { rule: 'Shipping notifications are not tasks' });
+  assert.equal(saved.version, before + 1);
+  assert.match(readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8'), /- Shipping notifications are not tasks/);
+  const empty = await app.fetch(new Request('http://localhost/api/skills/what-counts-as-a-task/rules', { method: 'POST', body: JSON.stringify({ rule: ' ' }) }));
+  assert.equal(empty.status, 400);
+});
+
 test('library skills can be installed, and exports leave out learned rules', async () => {
   const library = await api('/library');
   const starter = library.find((s: { slug: string }) => s.slug === 'writing-replies');

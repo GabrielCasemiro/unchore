@@ -2,6 +2,8 @@
 // Small CLI so a Claude Code / Codex session can report back:
 //   unchore done <task-id> [--note "what was done"]   (task id like responder-maria-k3f9)
 //   unchore sync <whatsapp|gmail|slack|linkedin>
+//   unchore rule "<rule>"   adds a rule to "What counts as a task"
+//   unchore rescan          re-checks the last 24h of skipped messages
 import { parseArgs } from 'node:util';
 
 const { values, positionals } = parseArgs({
@@ -29,8 +31,14 @@ try {
   } else if (cmd === 'sync' && arg) {
     const r = await call(`/connectors/${arg}/sync`);
     console.log(`${arg}: ${r.added} new messages.`);
+  } else if (cmd === 'rule' && arg) {
+    const s = await call('/skills/what-counts-as-a-task/rules', { rule: arg });
+    console.log(`Added to "${s.name}" (v${s.version}).`);
+  } else if (cmd === 'rescan') {
+    const r = await call('/rescan');
+    console.log(`Rescanned ${r.processed} messages: ${r.created} new task${r.created === 1 ? '' : 's'}.`);
   } else {
-    console.log('Usage:\n  unchore done <task-id> [--note "…"]\n  unchore sync <whatsapp|gmail|slack|linkedin>');
+    console.log('Usage:\n  unchore done <task-id> [--note "…"]\n  unchore sync <whatsapp|gmail|slack|linkedin>\n  unchore rule "<rule>"\n  unchore rescan');
     process.exitCode = 1;
   }
 } catch (err) {

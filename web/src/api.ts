@@ -145,6 +145,8 @@ export const api = {
   chat: () => request<ChatMessage[]>('/agent'),
   ask: (message: string, taskId?: string) => request<ChatMessage[]>('/agent', 'POST', { message, taskId }),
   clearChat: () => request<ChatMessage[]>('/agent', 'DELETE'),
+  agentTakeover: (tool: string) =>
+    request<{ file: string; command: string | null; markdown: string; openUrl: string | null }>('/agent/takeover', 'POST', { tool }),
 };
 
 export const timeAgo = (iso: string | null) => {

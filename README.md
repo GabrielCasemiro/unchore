@@ -67,7 +67,9 @@ become `[placeholders]`, and Unchore won't send a reply that still has one.
 
 **Inbox agent.** Ask why something was added or skipped, or just tell it what to change: "messages
 from Café Aurora are always high priority". It turns that into a rule and can rescan the last 24
-hours.
+hours. Prefer your own AI? Continue the agent in Claude Code, Codex, Claude or ChatGPT: Unchore
+writes `AGENT.md` with your rules, open tasks and recent decisions, and the session can add rules
+with `npx unchore rule "…"`.
 
 ![The Inbox agent explaining why a Stripe receipt was skipped and adding a new priority rule](docs/images/inbox-agent.png)
 

@@ -66,7 +66,9 @@ que falta vira `[campo]`, e o Unchore não envia uma resposta com campo vazio.
 
 **Inbox agent.** Pergunte por que algo entrou ou ficou de fora, ou diga o que mudar: "mensagens do
 Café Aurora são sempre prioridade alta". Ele transforma isso em regra e pode reler as últimas 24
-horas.
+horas. Prefere a sua própria IA? Continue o agente no Claude Code, Codex, Claude ou ChatGPT: o
+Unchore escreve um `AGENT.md` com as suas regras, as tarefas abertas e as decisões recentes, e a
+sessão pode adicionar regras com `npx unchore rule "…"`.
 
 ![O Inbox agent explicando por que pulou um recibo da Stripe e adicionando uma regra de prioridade](docs/images/inbox-agent.png)
 
