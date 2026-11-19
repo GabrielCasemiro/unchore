@@ -111,8 +111,9 @@ Good skills are short bullets, say plainly when they apply, and tell Claude what
 - **Never use real data.** Screenshots, tests, fixtures and examples use made-up names, messages,
   emails and phone numbers (`example.com`, `5511999990000`). This includes your own inbox.
 - **Message content is untrusted.** Anyone can send an email that tries to instruct the AI.
-  Extraction and planning runs get no tools at all, and a sync or reply run only gets that one
-  source's tools. Don't widen this; if a feature seems to need it, open an issue first.
+  Extraction gets no tools at all, planning only gets the read-only lookups a user wrote in their
+  own skill, and a sync or reply run only gets that one source's tools. Don't widen this; if a
+  feature seems to need it, open an issue first.
 - **Nothing is sent without approval.** Features that act on the user's behalf must wait for an
   explicit click.
 - **No secrets in the repo.** Credentials live in `.env`, which is gitignored.

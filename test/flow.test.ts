@@ -198,6 +198,69 @@ test('the note from accepting reaches every plan of the task; titles follow the 
   assert.match(log().filter((c) => c.props.includes('steps')).pop()!.prompt, /Offer next Tuesday/, 'the accept note is kept on later plans');
 });
 
+test('grants: only narrow, user-written tools become CLI permissions', async () => {
+  const { grantError, permissionsFor, splitGrants } = await import('../server/grants.ts');
+  const { claudeArgs } = await import('../server/claude.ts');
+  const { homedir } = await import('node:os');
+  assert.deepEqual(splitGrants('Read(~/a/**), Bash(sqlite3 -safe -readonly ~/a.db:*)'), ['Read(~/a/**)', 'Bash(sqlite3 -safe -readonly ~/a.db:*)']);
+  assert.equal(grantError('Read(~/notes/**)', 'reads'), null);
+  assert.match(grantError('Write(~/notes/x)', 'reads')!, /belongs under actions/);
+  assert.match(grantError('Read(~/**)', 'reads')!, /whole disk or home/);
+  assert.match(grantError('mcp__claude_ai_Gmail', 'reads')!, /not a whole server/);
+  assert.match(grantError('WebFetch(https://x.com)', 'reads')!, /one site/);
+  assert.match(grantError('Bash', 'reads')!, /Tool\(what it may touch\)/);
+  assert.match(grantError('Bash(cat ~/a.txt)', 'reads')!, /end it with :\*/);
+  assert.match(grantError('Bash(curl -s https://x.com/:*)', 'reads')!, /use WebFetch/);
+
+  const perms = permissionsFor(['Read(~/notes/**)', 'Bash(sqlite3 -safe -readonly ~/crm.db:*)', 'Write(~/x)'], 'reads');
+  assert.deepEqual(perms.tools, ['Read', 'Bash'], 'Write is dropped for lookups');
+  assert.deepEqual(perms.dirs, [`${homedir()}/notes`]);
+  const args = claudeArgs({ prompt: 'x', permissions: perms });
+  assert.equal(args[args.indexOf('--tools') + 1], 'Read,Bash');
+  assert.ok(args.includes('--restricted') && args.includes('--strict-mcp-config'));
+  assert.equal(args[args.indexOf('--permission-mode') + 1], 'dontAsk');
+  assert.equal(args[args.indexOf('--allowedTools') + 1], `Read(/${homedir()}/notes/**),Bash(sqlite3 -safe -readonly ~/crm.db:*)`);
+});
+
+test('plans run granted lookups and propose actions; an action runs only when approved, without the conversation', async () => {
+  const log = () => readFileSync(join(home, 'claude.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { args: string[]; props: string[]; prompt: string });
+  const s = (await api('/skills/scheduling')).skill;
+  const saved = await api('/skills/scheduling', 'PUT', { name: s.name, when: s.when, body: s.body, reads: ['Read(~/notes/**)', 'Write(~/notes/x)'], actions: ['mcp__claude_ai_Google_Calendar__create_event'] });
+  assert.deepEqual(saved.reads, ['Read(~/notes/**)', 'Write(~/notes/x)']);
+  assert.equal(saved.grantProblems.length, 1);
+  assert.match(readFileSync(join(home, 'skills', 'scheduling.md'), 'utf8'), /^actions: mcp__claude_ai_Google_Calendar__create_event$/m);
+
+  const { run } = await import('../server/db.ts');
+  run(`INSERT INTO signals (source, external_id, thread_id, from_name, text, received_at, processed) VALUES ('whatsapp', 'act1', 'act', 'Ana', 'SECRET-THREAD-TEXT can we talk in January?', ?, 1)`, new Date().toISOString());
+  run(`INSERT INTO tasks (uid, title, source, thread_id, status) VALUES ('action-test-aaaa', 'Follow up with Ana', 'whatsapp', 'act', 'suggested')`);
+  await api('/tasks/action-test-aaaa/accept', 'POST', {});
+  await waitFor(async () => (await api('/tasks/action-test-aaaa')).task.status === 'plan_ready');
+  const planRun = log().filter((c) => c.props.includes('steps')).pop()!;
+  assert.equal(planRun.args[planRun.args.indexOf('--tools') + 1], 'Read', 'lookups only: the Write grant is ignored');
+  assert.ok(planRun.args.includes('--restricted'));
+  assert.doesNotMatch(planRun.args[planRun.args.indexOf('--allowedTools') + 1], /create_event/, 'action tools are not given to planning');
+
+  const plan = (await api('/tasks/action-test-aaaa')).task.plan;
+  assert.deepEqual(plan.checked, ['Read the notes: the client asked to talk in January']);
+  assert.equal(plan.actions[0].status, 'proposed');
+
+  const done = await api('/tasks/action-test-aaaa/actions/0/run', 'POST');
+  assert.equal(done.status, 'done');
+  const actRun = log().filter((c) => c.props.includes('done')).pop()!;
+  assert.match(actRun.args[actRun.args.indexOf('--allowedTools') + 1], /mcp__claude_ai_Google_Calendar__create_event/);
+  assert.ok(!actRun.args.includes('--strict-mcp-config'), 'MCP servers load for an MCP action');
+  assert.match(actRun.prompt, /Create a calendar event on 2027-01-05/);
+  assert.doesNotMatch(actRun.prompt, /SECRET-THREAD-TEXT/);
+  assert.equal((await api('/tasks/action-test-aaaa')).task.plan.actions[0].status, 'done');
+  const again = await app.fetch(new Request('http://localhost/api/tasks/action-test-aaaa/actions/0/run', { method: 'POST' }));
+  assert.equal(again.status, 400, 'an action never runs twice');
+
+  const exported = await api('/skills/scheduling/export');
+  assert.doesNotMatch(exported.markdown, /reads:|actions:|create_event/);
+  await api('/skills/scheduling', 'PUT', { name: s.name, when: s.when, body: s.body, reads: [], actions: [] });
+  assert.doesNotMatch(readFileSync(join(home, 'skills', 'scheduling.md'), 'utf8'), /reads:|actions:/);
+});
+
 test('library skills can be installed, and exports leave out learned rules', async () => {
   const library = await api('/library');
   const starter = library.find((s: { slug: string }) => s.slug === 'writing-replies');

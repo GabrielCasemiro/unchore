@@ -20,6 +20,14 @@ export interface TaskListItem {
   hasPlan: boolean;
 }
 
+export interface PlanAction {
+  title: string;
+  instructions: string;
+  skill_slug: string | null;
+  status?: 'proposed' | 'running' | 'done' | 'failed' | 'skipped';
+  result?: string;
+}
+
 export interface Plan {
   summary: string;
   steps: string[];
@@ -27,6 +35,8 @@ export interface Plan {
   reply: string | null;
   skill_slug: string | null;
   needs_from_me: string | null;
+  checked?: string[];
+  actions?: PlanAction[];
 }
 
 export interface ThreadMessage {
@@ -52,6 +62,9 @@ export interface Skill {
   when: string;
   system: boolean;
   body: string;
+  reads: string[];
+  actions: string[];
+  grantProblems: string[];
   version: number;
   updatedAt: string | null;
   file: string;
@@ -106,6 +119,8 @@ export const api = {
   task: (ref: string) => request<TaskDetail>(`/tasks/${ref}`),
   accept: (ref: string, note?: string) => request(`/tasks/${ref}/accept`, 'POST', { note }),
   replan: (ref: string) => request(`/tasks/${ref}/plan`, 'POST'),
+  runAction: (ref: string, index: number) => request<PlanAction>(`/tasks/${ref}/actions/${index}/run`, 'POST'),
+  skipAction: (ref: string, index: number) => request(`/tasks/${ref}/actions/${index}/skip`, 'POST'),
   dismiss: (ref: string, reason: string, note?: string) =>
     request<{ rule: string | null; version: number | null; previousBody: string | null }>(`/tasks/${ref}/dismiss`, 'POST', { reason, note }),
   undoDismiss: (ref: string, previousBody: string | null) => request(`/tasks/${ref}/undo-dismiss`, 'POST', { previousBody }),
@@ -118,7 +133,7 @@ export const api = {
   skills: () => request<Skill[]>('/skills'),
   skill: (slug: string) =>
     request<{ skill: Skill; history: Array<{ version: number; note: string; created_at: string }>; recent: Array<{ uid: string; title: string; status: string }> }>(`/skills/${slug}`),
-  saveSkill: (slug: string, body: { name: string; when: string; body: string }) => request<Skill>(`/skills/${slug}`, 'PUT', body),
+  saveSkill: (slug: string, body: { name: string; when: string; body: string; reads?: string[]; actions?: string[] }) => request<Skill>(`/skills/${slug}`, 'PUT', body),
   exportSkill: (slug: string) => request<{ file: string; markdown: string }>(`/skills/${slug}/export`),
   library: () => request<LibrarySkill[]>('/library'),
   installSkill: (slug: string) => request<Skill>(`/library/${slug}/install`, 'POST'),

@@ -24,7 +24,14 @@ if (props.includes('decisions')) {
     }),
   };
 } else if (props.includes('steps')) {
-  out = { summary: 'Reply with the price', steps: ['Check the price list', 'Reply'], draft: null, reply: 'O kit custa R$ 49,90.', skill_slug: 'writing-replies', needs_from_me: null };
+  const canAct = args.join(' ').includes('Actions you may propose');
+  out = {
+    summary: 'Reply with the price', steps: ['Check the price list', 'Reply'], draft: null, reply: 'O kit custa R$ 49,90.', skill_slug: 'writing-replies', needs_from_me: null,
+    checked: canAct ? ['Read the notes: the client asked to talk in January'] : [],
+    actions: canAct ? [{ title: 'Add a reminder on Jan 5', instructions: 'Create a calendar event on 2027-01-05 at 09:00 titled "Follow up with Ana".', skill_slug: 'scheduling' }] : [],
+  };
+} else if (props.includes('done') && props.includes('detail')) {
+  out = { done: true, detail: 'Created the event' };
 } else if (props.includes('rule')) {
   out = { rule: 'Order status notifications are not tasks' };
 } else if (props.includes('rescan')) {

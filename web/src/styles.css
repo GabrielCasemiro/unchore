@@ -121,6 +121,10 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .reasons .opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .reasons .opts button { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #d9d1fa; background: #fff; font-size: 13px; }
 .reasons .opts button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.checked { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; }
+.grants { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: 14px; }
+.grants[open] { gap: 12px; }
+.grants summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 .link { padding: 0; border: 0; background: none; color: #4b2fd6; font: inherit; cursor: pointer; }
 .learned { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--pastel); }
 .learned .ic { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; }

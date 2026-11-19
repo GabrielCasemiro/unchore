@@ -17,6 +17,8 @@ export const config = {
   skillsDir: join(home, 'skills'),
   librarySkillsDir: join(root, 'skills'),
   tasksDir: join(home, 'tasks'),
+  // Empty working folder for runs with granted tools, so they can't browse the data folder.
+  runDir: join(home, 'run'),
   port: Number(process.env.PORT || 4477),
   claudeBin: process.env.CLAUDE_BIN || 'claude',
   model: process.env.UNCHORE_MODEL ?? 'sonnet',
@@ -35,4 +37,4 @@ export const config = {
   disableScheduler: process.env.UNCHORE_NO_SCHEDULER === '1',
 };
 
-for (const dir of [config.home, config.skillsDir, config.tasksDir]) mkdirSync(dir, { recursive: true });
+for (const dir of [config.home, config.skillsDir, config.tasksDir, config.runDir]) mkdirSync(dir, { recursive: true });

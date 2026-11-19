@@ -86,6 +86,17 @@ system: false
   the ones whose `when` matches the task. So `when` should say plainly when the skill applies
   ("Messages from clients on WhatsApp", "Invoices and payments").
 - **Slugs** are lowercase letters, digits and dashes (`client-replies`).
+- **Tools (`reads:` and `actions:` in the header)** are Claude Code permission rules, comma
+  separated, that only the person's own skills can have (never library files or exports):
+  - `reads:` lookups a plan may run on its own: `Read(~/work/clients/**)`,
+    `Bash(sqlite3 -safe -readonly ~/work/crm.db:*)`, `mcp__claude_ai_Google_Calendar__list_events`.
+  - `actions:` tools for actions the plan proposes and the user approves one by one:
+    `mcp__claude_ai_Google_Calendar__create_event`, `Bash(npx wrangler kv key put:*)`.
+  - Bash rules must end in `:*` (Claude Code matches them as a prefix, so extra flags get through).
+    Only grant commands that can't write with any flag: `sqlite3 -safe -readonly` yes, `curl` no
+    (use `WebFetch(domain:…)`). Name exact files or folders, never a folder that holds a `.env`,
+    and never a whole home folder or MCP server.
+    Ask the person before adding any grant, and explain what it lets a plan do.
 - **`## Learned from feedback`** sections are written by Unchore when the user dismisses a task or
   requests changes. Keep them unless the user asks to clean them up.
 
@@ -134,10 +145,12 @@ Adding a connector is described in `CONTRIBUTING.md`. The source id also has to 
 
 ## Rules that must not break
 
-- **Message content is untrusted input.** Extraction, planning, the rule writer and the Inbox
-  agent run with no tools at all. A sync or reply run gets only that one source's MCP server (or
-  Chrome for LinkedIn). Never widen this; never pass message text into a run that has tools it
-  doesn't need.
+- **Message content is untrusted input.** Extraction, the rule writer and the Inbox agent run with
+  no tools at all. Planning gets only the read-only lookups the user wrote in their skills
+  (`reads:`), with `--restricted`, `dontAsk` and an empty working folder. An approved action gets
+  only its skill's `actions:` tools and never sees the messages. A sync or reply run gets only that
+  one source's MCP server (or Chrome for LinkedIn). Never widen this; never pass message text into
+  a run that has tools it doesn't need.
 - **Nothing is sent without the user's Approve.** Replies with `[placeholders]` can't be sent.
 - **Claude never invents facts** in plans and replies; unknowns become `[placeholders]` and go in
   `needs_from_me`.

@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from './config.ts';
 import { all, get, run } from './db.ts';
+import { grantError, splitGrants } from './grants.ts';
 
 export const TASK_SKILL = 'what-counts-as-a-task';
 
@@ -11,10 +12,18 @@ export interface Skill {
   when: string;
   system: boolean;
   body: string;
+  /** Lookups a plan may run on its own (Claude Code permission rules). */
+  reads: string[];
+  /** Tools an action may use after the user approves it. */
+  actions: string[];
+  /** Grants that are not allowed, with the reason. They are ignored. */
+  grantProblems: string[];
   version: number;
   updatedAt: string | null;
   file: string;
 }
+
+type SkillInput = { name: string; when: string; body: string; system?: boolean; reads?: string[]; actions?: string[] };
 
 const fileOf = (slug: string) => join(config.skillsDir, `${slug}.md`);
 const libraryFileOf = (slug: string) => join(config.librarySkillsDir, `${slug}.md`);
@@ -32,11 +41,25 @@ function frontmatter(text: string) {
 
 function parse(slug: string, text: string): Omit<Skill, 'version' | 'updatedAt'> {
   const { meta, body } = frontmatter(text);
-  return { slug, name: meta.name || slug, when: meta.when || '', system: meta.system === 'true', body, file: fileOf(slug) };
+  const system = meta.system === 'true';
+  // The system skill decides what is a task from raw messages: it never gets tools.
+  const reads = system ? [] : splitGrants(meta.reads ?? '');
+  const actions = system ? [] : splitGrants(meta.actions ?? '');
+  const grantProblems = [
+    ...reads.map((g) => grantError(g, 'reads')),
+    ...actions.map((g) => grantError(g, 'actions')),
+  ].filter((e): e is string => !!e);
+  return { slug, name: meta.name || slug, when: meta.when || '', system, body, reads, actions, grantProblems, file: fileOf(slug) };
 }
 
-function serialize(s: { name: string; when: string; system: boolean; body: string }) {
-  return `---\nname: ${s.name.replace(/\n/g, ' ')}\nwhen: ${s.when.replace(/\n/g, ' ')}\nsystem: ${s.system}\n---\n${s.body.trim()}\n`;
+const oneLine = (s: string) => s.replace(/\n/g, ' ');
+
+function serialize(s: { name: string; when: string; system: boolean; body: string; reads?: string[]; actions?: string[] }) {
+  const grants = [
+    s.reads?.length ? `reads: ${oneLine(s.reads.join(', '))}\n` : '',
+    s.actions?.length ? `actions: ${oneLine(s.actions.join(', '))}\n` : '',
+  ].join('');
+  return `---\nname: ${oneLine(s.name)}\nwhen: ${oneLine(s.when)}\nsystem: ${s.system}\n${grants}---\n${s.body.trim()}\n`;
 }
 
 function versionOf(slug: string) {
@@ -54,7 +77,8 @@ export interface LibrarySkill {
   installed: boolean;
 }
 
-/** Public skills shipped in the repo's skills/ folder. Users install a copy into their own folder. */
+/** Public skills shipped in the repo's skills/ folder. Users install a copy into their own folder.
+ * Library skills never grant tools: reads/actions in a library file are ignored. */
 export function listLibrary(): LibrarySkill[] {
   if (!existsSync(config.librarySkillsDir)) return [];
   return readdirSync(config.librarySkillsDir)
@@ -83,15 +107,16 @@ export function installSkill(slug: string): Skill {
   const lib = librarySkill(slug);
   if (!lib) throw new Error(`No skill called ${slug} in the library`);
   if (lib.installed) throw new Error(`You already have a skill called ${slug}`);
-  return saveSkill(slug, lib, 'installed from the library');
+  return saveSkill(slug, { name: lib.name, when: lib.when, body: lib.body, system: lib.system }, 'installed from the library');
 }
 
 /** Starter skills are installed on first run and never overwritten. */
 export function seedSkills() {
-  for (const s of listLibrary()) if (s.starter && !s.installed) saveSkill(s.slug, s, 'created');
+  for (const s of listLibrary()) if (s.starter && !s.installed) saveSkill(s.slug, { name: s.name, when: s.when, body: s.body, system: s.system }, 'created');
 }
 
-/** A skill as a file to share: without the rules learned from my own feedback, which often name real people. */
+/** A skill as a file to share: without the rules learned from my own feedback, which often name real people,
+ * and without the tools it grants on this computer. */
 export function exportSkill(slug: string) {
   const s = getSkill(slug);
   if (!s) throw new Error(`Unknown skill ${slug}`);
@@ -124,11 +149,13 @@ export function listSkills(): Skill[] {
     .sort((a, b) => Number(b.system) - Number(a.system) || a.name.localeCompare(b.name));
 }
 
-export function saveSkill(slug: string, input: { name: string; when: string; body: string; system?: boolean }, note = 'edited'): Skill {
+export function saveSkill(slug: string, input: SkillInput, note = 'edited'): Skill {
   if (!validSlug(slug)) throw new Error('Skill names may only use a-z, 0-9 and dashes');
   const prev = getSkill(slug);
   const system = input.system ?? prev?.system ?? false;
-  writeFileSync(fileOf(slug), serialize({ ...input, system }));
+  const reads = system ? [] : (input.reads ?? prev?.reads ?? []).map((g) => g.trim()).filter(Boolean);
+  const actions = system ? [] : (input.actions ?? prev?.actions ?? []).map((g) => g.trim()).filter(Boolean);
+  writeFileSync(fileOf(slug), serialize({ ...input, system, reads, actions }));
   const version = (versionOf(slug)?.v ?? 0) + 1;
   run('INSERT INTO skill_versions (skill, version, body, note) VALUES (?, ?, ?, ?)', slug, version, input.body, note);
   return getSkill(slug)!;
@@ -149,6 +176,11 @@ export function skillHistory(slug: string) {
     'SELECT version, note, created_at FROM skill_versions WHERE skill = ? ORDER BY version DESC LIMIT 30',
     slug,
   );
+}
+
+/** Everything the user's skills grant, across all work skills. */
+export function skillGrants(kind: 'reads' | 'actions'): string[] {
+  return listSkills().filter((s) => !s.system).flatMap((s) => s[kind]);
 }
 
 /** All non-system skills, formatted for a prompt. */
