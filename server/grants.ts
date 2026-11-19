@@ -12,6 +12,9 @@ const BUILTIN: Record<GrantKind, string[]> = {
   actions: ['Read', 'Grep', 'Glob', 'Bash', 'WebFetch', 'Edit', 'Write'],
 };
 const FILE_TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write'];
+// Claude Code can reach every file in a folder it is given, so secrets inside granted
+// folders are always denied (deny rules win over the folder access).
+const SECRETS = ['.env*', '*.pem', '*.key', 'id_rsa*', 'id_ed25519*', '.ssh/**', '.aws/**', '.netrc', '.npmrc', 'credentials*'];
 
 /** Splits "Read(a, b), Bash(x)" on the commas that are outside parentheses. */
 export function splitGrants(text: string): string[] {
@@ -47,7 +50,10 @@ export function grantError(grant: string, kind: GrantKind): string | null {
   if (m[1] === 'Bash' && !m[2].endsWith(':*')) return `${grant}: end it with :* so it matches, like Bash(sqlite3 -safe -readonly ~/crm.db:*)`;
   if (m[1] === 'WebFetch' && !m[2].startsWith('domain:')) return `${grant}: limit WebFetch to one site, like WebFetch(domain:example.com)`;
   if (FILE_TOOLS.includes(m[1]) && !/^[~/]/.test(m[2])) return `${grant}: use a full path starting with ~/ or /`;
-  if (FILE_TOOLS.includes(m[1]) && /^[~/]\**$|^~\/\*\*?$|^\/\*\*?$/.test(m[2])) return `${grant}: name a folder, not your whole disk or home`;
+  if (FILE_TOOLS.includes(m[1]) && /^(~|\/Users\/[^/]+|\/home\/[^/]+)?\/\*\*$/.test(m[2])) return `${grant}: name a folder, not your whole disk or home`;
+  if (FILE_TOOLS.includes(m[1]) && !/^[~/].*[^/*]\/\*\*$/.test(m[2])) {
+    return `${grant}: grant a folder, like ${m[1]}(~/work/clients/**). Claude can open every file in a folder it is given`;
+  }
   return null;
 }
 
@@ -56,6 +62,8 @@ export interface Permissions {
   tools: string[];
   /** Permission rules (--allowedTools), file paths made absolute. */
   rules: string[];
+  /** Deny rules (--disallowedTools) for secrets inside granted folders. */
+  denied: string[];
   /** Folders the file tools may reach (--add-dir). */
   dirs: string[];
   /** Whether MCP servers must be loaded. */
@@ -66,7 +74,7 @@ const expandHome = (p: string) => (p.startsWith('~') ? homedir() + p.slice(1) : 
 
 /** Turns valid grants into CLI permissions. Invalid ones are dropped. */
 export function permissionsFor(grants: string[], kind: GrantKind): Permissions {
-  const perms: Permissions = { tools: [], rules: [], dirs: [], mcp: false };
+  const perms: Permissions = { tools: [], rules: [], denied: [], dirs: [], mcp: false };
   for (const grant of new Set(grants)) {
     if (grantError(grant, kind)) continue;
     if (grant.startsWith('mcp__')) {
@@ -77,14 +85,17 @@ export function permissionsFor(grants: string[], kind: GrantKind): Permissions {
     const [, tool, spec] = grant.match(/^([A-Za-z]+)\((.+)\)$/)!;
     if (!perms.tools.includes(tool)) perms.tools.push(tool);
     if (FILE_TOOLS.includes(tool)) {
-      const path = expandHome(spec);
+      const dir = expandHome(spec).slice(0, -'/**'.length);
       // Claude Code reads "//path" as an absolute path.
-      perms.rules.push(`${tool}(/${path})`);
-      const base = path.split(/[*?[{]/)[0].replace(/\/[^/]*$/, '') || '/';
-      if (!perms.dirs.includes(base)) perms.dirs.push(base);
+      perms.rules.push(`${tool}(/${dir}/**)`);
+      if (!perms.dirs.includes(dir)) perms.dirs.push(dir);
     } else {
       perms.rules.push(grant);
     }
+  }
+  const fileTools = perms.tools.filter((t) => FILE_TOOLS.includes(t));
+  for (const dir of perms.dirs) {
+    for (const tool of fileTools) for (const secret of SECRETS) perms.denied.push(`${tool}(/${dir}/**/${secret})`);
   }
   return perms;
 }

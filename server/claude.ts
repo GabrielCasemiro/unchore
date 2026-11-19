@@ -46,6 +46,7 @@ export function claudeArgs(run: ClaudeRun): string[] {
     // Ignores the user's own Claude Code settings and keeps file tools inside --add-dir.
     args.push('--restricted', '--permission-prompts', 'none');
     for (const dir of perms.dirs) args.push('--add-dir', dir);
+    if (perms.denied.length) args.push('--disallowedTools', perms.denied.join(','));
   }
   const allowed = [...(run.mcpServers ?? []).map((s) => `mcp__${s}`), ...(perms?.rules ?? [])];
   if (run.chrome) {

@@ -94,8 +94,9 @@ system: false
     `mcp__claude_ai_Google_Calendar__create_event`, `Bash(npx wrangler kv key put:*)`.
   - Bash rules must end in `:*` (Claude Code matches them as a prefix, so extra flags get through).
     Only grant commands that can't write with any flag: `sqlite3 -safe -readonly` yes, `curl` no
-    (use `WebFetch(domain:…)`). Name exact files or folders, never a folder that holds a `.env`,
-    and never a whole home folder or MCP server.
+    (use `WebFetch(domain:…)`). File tools take folders only (`Read(~/work/clients/**)`), because
+    Claude Code can open every file in a folder it is given; Unchore always denies `.env*`, keys
+    and credentials inside them. Never grant a whole home folder or MCP server.
     Ask the person before adding any grant, and explain what it lets a plan do.
 - **`## Learned from feedback`** sections are written by Unchore when the user dismisses a task or
   requests changes. Keep them unless the user asks to clean them up.

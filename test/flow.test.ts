@@ -206,6 +206,7 @@ test('grants: only narrow, user-written tools become CLI permissions', async () 
   assert.equal(grantError('Read(~/notes/**)', 'reads'), null);
   assert.match(grantError('Write(~/notes/x)', 'reads')!, /belongs under actions/);
   assert.match(grantError('Read(~/**)', 'reads')!, /whole disk or home/);
+  assert.match(grantError('Read(~/work/CLAUDE.md)', 'reads')!, /grant a folder/);
   assert.match(grantError('mcp__claude_ai_Gmail', 'reads')!, /not a whole server/);
   assert.match(grantError('WebFetch(https://x.com)', 'reads')!, /one site/);
   assert.match(grantError('Bash', 'reads')!, /Tool\(what it may touch\)/);
@@ -220,6 +221,7 @@ test('grants: only narrow, user-written tools become CLI permissions', async () 
   assert.ok(args.includes('--restricted') && args.includes('--strict-mcp-config'));
   assert.equal(args[args.indexOf('--permission-mode') + 1], 'dontAsk');
   assert.equal(args[args.indexOf('--allowedTools') + 1], `Read(/${homedir()}/notes/**),Bash(sqlite3 -safe -readonly ~/crm.db:*)`);
+  assert.match(args[args.indexOf('--disallowedTools') + 1], new RegExp(`Read\\(/${homedir()}/notes/\\*\\*/\\.env\\*\\)`), 'secrets in a granted folder stay denied');
 });
 
 test('plans run granted lookups and propose actions; an action runs only when approved, without the conversation', async () => {
