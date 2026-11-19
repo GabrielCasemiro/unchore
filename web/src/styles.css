@@ -120,6 +120,8 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .reasons { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 14px; background: #f7f5ff; border: 1px solid #e4defc; }
 .reasons .opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .reasons .opts button { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid #d9d1fa; background: #fff; font-size: 13px; }
+.reasons .opts button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.link { padding: 0; border: 0; background: none; color: #4b2fd6; font: inherit; cursor: pointer; }
 .learned { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--pastel); }
 .learned .ic { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; }
 

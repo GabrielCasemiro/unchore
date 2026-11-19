@@ -35,8 +35,9 @@ export function createApp() {
     if (!task) return c.json({ error: 'Not found' }, 404);
     return c.json({ task, thread: getThread(task), events: taskEvents(task.id) });
   });
-  app.post('/api/tasks/:id/accept', (c) => {
-    acceptTask(resolveTaskId(c.req.param('id')));
+  app.post('/api/tasks/:id/accept', async (c) => {
+    const { note } = await c.req.json<{ note?: string }>().catch(() => ({ note: undefined }));
+    acceptTask(resolveTaskId(c.req.param('id')), note);
     return c.json({ ok: true });
   });
   app.post('/api/tasks/:id/plan', (c) => {

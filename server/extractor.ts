@@ -1,4 +1,5 @@
 import { runClaude, untrusted } from './claude.ts';
+import { config } from './config.ts';
 import { all, get, logEvent, makeTaskUid, run, tx } from './db.ts';
 import { getSkill, TASK_SKILL } from './skills.ts';
 
@@ -36,10 +37,10 @@ const schema = {
         properties: {
           signal_id: { type: 'integer' },
           is_task: { type: 'boolean' },
-          reason: { type: 'string', description: 'One short sentence: why this is or is not a task, citing the rule that applied' },
+          reason: { type: 'string', description: `One short sentence in ${config.language}: why this is or is not a task, citing the rule that applied` },
           existing_task_id: { type: ['integer', 'null'], description: 'Open task this message belongs to, if any' },
-          title: { type: 'string', description: 'Imperative task title, max 70 chars, in the language of the message' },
-          summary: { type: 'string', description: 'What exactly is being asked, 1-2 sentences' },
+          title: { type: 'string', description: `Imperative task title in ${config.language}, max 70 chars, whatever language the message is in` },
+          summary: { type: 'string', description: `What exactly is being asked, 1-2 sentences in ${config.language}` },
           due: { type: ['string', 'null'], description: 'YYYY-MM-DD if a deadline is stated or clearly implied' },
           priority: { type: 'string', enum: ['high', 'medium', 'low'] },
           confidence: { type: 'number', minimum: 0, maximum: 1 },

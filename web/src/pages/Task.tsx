@@ -111,6 +111,7 @@ function History({ data }: { data: TaskDetail }) {
             {typeof e.detail?.detail === 'string' && ` · ${e.detail.detail}`}
             {typeof e.detail?.error === 'string' && ` · ${e.detail.error}`}
             {typeof e.detail?.tool === 'string' && ` · ${e.detail.tool}`}
+            {typeof e.detail?.note === 'string' && e.detail.note && ` · “${e.detail.note}”`}
           </li>
         ))}
       </ul>
@@ -168,6 +169,7 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
   const [updateSkill, setUpdateSkill] = useState(true);
   const [busy, setBusy] = useState(false);
   const [takeover, setTakeover] = useState<{ name: string; command: string | null; file: string } | null>(null);
+  const [acceptNote, setAcceptNote] = useState('');
   useEffect(() => setReply(plan?.reply ?? ''), [plan?.reply]);
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -206,9 +208,15 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
       </div>
 
       {status === 'suggested' && (
-        <div className="actions">
-          <button type="button" className="btn primary" onClick={() => act(() => api.accept(task.uid))}>{Icon.check()}Accept and plan</button>
-        </div>
+        <>
+          <label className="field">
+            Note (optional)
+            <input className="input" value={acceptNote} onChange={(e) => setAcceptNote(e.target.value)} placeholder="e.g. offer next Tuesday, and keep it short" />
+          </label>
+          <div className="actions">
+            <button type="button" className="btn primary" onClick={() => act(() => api.accept(task.uid, acceptNote.trim() || undefined))}>{Icon.check()}Accept and plan</button>
+          </div>
+        </>
       )}
       {status === 'planning' && <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span className="spinner" />Claude is reading the conversation and your skills…</div>}
       {task.plan_error && <div className="notice err">{task.plan_error}</div>}

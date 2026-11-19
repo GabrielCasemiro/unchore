@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, type ChatMessage, type SourceId, SOURCE_NAMES, type TaskListItem, timeAgo } from '../api.ts';
+import { api, type ChatMessage, type SourceId, SOURCE_NAMES, type TaskListItem, type ThreadMessage, timeAgo } from '../api.ts';
 import { toast, usePoll } from '../App.tsx';
 import { Brand, Icon } from '../icons.tsx';
 
@@ -145,14 +145,16 @@ function Details({ task, onWhy, onChanged, onLearned }: {
   onLearned: (rule: string, previousBody: string | null) => void;
 }) {
   const [asking, setAsking] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [acceptNote, setAcceptNote] = useState('');
   const [busy, setBusy] = useState(false);
   const isNew = task.status === 'suggested';
 
-  const dismiss = async (reason: string) => {
+  const dismiss = async () => {
     setBusy(true);
     try {
-      const r = await api.dismiss(task.uid, reason, note || undefined);
+      const r = await api.dismiss(task.uid, reason ?? 'Other', note.trim() || undefined);
       if (r.rule) onLearned(r.rule, r.previousBody);
       else toast('Removed from your Inbox.');
       onChanged();
@@ -176,7 +178,7 @@ function Details({ task, onWhy, onChanged, onLearned }: {
       <figure className="quote">
         <figcaption><strong style={{ color: 'var(--ink)' }}>{task.requester}</strong> via {SOURCE_NAMES[task.source]}{task.channel && task.channel !== 'WhatsApp' ? ` · ${task.channel}` : ''} · {timeAgo(task.last_at)}</figcaption>
         <blockquote>{task.last_text ?? task.summary}</blockquote>
-        <a href={`#/task/${task.uid}`} style={{ fontSize: 13, fontWeight: 600, color: '#4b2fd6' }}>Open task and full thread</a>
+        <Conversation task={task} />
       </figure>
       <dl className="facts">
         <div><dt>Requester</dt><dd>{task.requester ?? '—'}</dd></div>
@@ -187,9 +189,13 @@ function Details({ task, onWhy, onChanged, onLearned }: {
 
       {isNew ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="field">
+            Note (optional)
+            <input className="input" value={acceptNote} onChange={(e) => setAcceptNote(e.target.value)} placeholder="e.g. offer next Tuesday, and keep it short" />
+          </label>
           <div className="actions">
             <button type="button" className="btn primary" disabled={busy} onClick={async () => {
-              await api.accept(task.uid);
+              await api.accept(task.uid, acceptNote.trim() || undefined);
               toast('Accepted. Claude is preparing a plan.');
               onChanged();
             }}>{Icon.check()}Accept</button>
@@ -199,14 +205,17 @@ function Details({ task, onWhy, onChanged, onLearned }: {
             <div className="reasons">
               <strong>Why isn't this a task?</strong>
               <span style={{ fontSize: 13, color: '#3a3a45' }}>Your answer becomes a rule, so similar messages are skipped next time.</span>
-              <div className="opts">
-                {REASONS.map((r) => <button key={r} type="button" disabled={busy} onClick={() => dismiss(r)}>{r}</button>)}
+              <div className="opts" role="group" aria-label="Reason">
+                {REASONS.map((r) => <button key={r} type="button" aria-pressed={reason === r} disabled={busy} onClick={() => setReason(reason === r ? null : r)}>{r}</button>)}
               </div>
               <label className="field">
                 Anything else? (optional)
                 <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. order updates from this store are automatic" />
               </label>
-              {busy && <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}><span className="spinner" />Learning…</span>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button type="button" className="btn dark small" disabled={busy || (!reason && !note.trim())} onClick={dismiss}>Send</button>
+                {busy && <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}><span className="spinner" />Learning…</span>}
+              </div>
             </div>
           )}
         </div>
@@ -219,6 +228,34 @@ function Details({ task, onWhy, onChanged, onLearned }: {
         </div>
       )}
     </section>
+  );
+}
+
+/** The whole thread, loaded on demand, so a task can be checked before accepting it. */
+function Conversation({ task }: { task: TaskListItem }) {
+  const [thread, setThread] = useState<ThreadMessage[] | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (open && !thread) api.task(task.uid).then((d) => setThread(d.thread)).catch((e) => toast((e as Error).message)); }, [open, thread, task.uid]);
+  const original = thread?.findLast((m) => m.url)?.url;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 13, fontWeight: 600 }}>
+        <button type="button" className="link" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide conversation' : 'Show conversation'}</button>
+        {original && <a href={original} target="_blank" rel="noreferrer" style={{ color: '#4b2fd6' }}>Open in {SOURCE_NAMES[task.source]}</a>}
+        <a href={`#/task/${task.uid}`} style={{ color: '#4b2fd6' }}>Open task</a>
+      </div>
+      {open && !thread && <span className="sub" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span className="spinner" />Loading…</span>}
+      {open && thread?.map((m) => (
+        <div key={m.external_id} className={`msg ${m.is_from_me ? 'me' : ''}`}>
+          <span className="av">{(m.is_from_me ? 'Me' : m.from_name).charAt(0).toUpperCase()}</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13 }}><strong>{m.is_from_me ? 'Me' : m.from_name}</strong> <span style={{ color: 'var(--faint)' }}>{timeAgo(m.received_at)}</span></div>
+            {m.subject && <div style={{ fontSize: 13, fontWeight: 600 }}>{m.subject}</div>}
+            <p style={{ whiteSpace: 'pre-wrap' }}>{m.text}</p>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

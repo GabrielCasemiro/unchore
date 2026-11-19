@@ -50,7 +50,7 @@ the person may not be a developer.
    Claude run and short intervals use up session and weekly limits.
 
 Other settings in `.env`: `UNCHORE_HOME` (data folder, default `~/unchore`), `PORT` (default 4477),
-`UNCHORE_MODEL` (default `sonnet`), `CLAUDE_BIN`, `UNCHORE_DEBUG=1` (log every Claude run).
+`UNCHORE_MODEL` (default `sonnet`), `UNCHORE_LANGUAGE` (task titles and plans; default `English`), `CLAUDE_BIN`, `UNCHORE_DEBUG=1` (log every Claude run).
 
 Never print, log or commit `.env` values. Let the person type tokens themselves.
 

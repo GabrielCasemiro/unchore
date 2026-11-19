@@ -20,6 +20,8 @@ export const config = {
   port: Number(process.env.PORT || 4477),
   claudeBin: process.env.CLAUDE_BIN || 'claude',
   model: process.env.UNCHORE_MODEL ?? 'sonnet',
+  // Language for task titles, summaries and plans. Replies always follow the conversation.
+  language: process.env.UNCHORE_LANGUAGE || 'English',
   uazapi: {
     url: (process.env.UAZAPI_URL || '').replace(/\/+$/, ''),
     token: process.env.UAZAPI_TOKEN || '',

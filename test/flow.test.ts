@@ -180,6 +180,24 @@ test('skills can be edited and keep a version history', async () => {
   assert.equal((await api('/skills/scheduling')).history.length, 2);
 });
 
+test('the note from accepting reaches every plan of the task; titles follow the language setting', async () => {
+  const log = () => readFileSync(join(home, 'claude.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { args: string[]; props: string[]; prompt: string });
+  const extract = log().find((c) => c.props.includes('decisions'))!;
+  assert.match(extract.args[extract.args.indexOf('--json-schema') + 1], /Imperative task title in English/);
+
+  const { run } = await import('../server/db.ts');
+  run(`INSERT INTO tasks (uid, title, source, thread_id, status) VALUES ('note-test-aaaa', 'Answer Ana', 'whatsapp', 'note', 'suggested')`);
+  await api('/tasks/note-test-aaaa/accept', 'POST', { note: 'Offer next Tuesday' });
+  await waitFor(async () => (await api('/tasks/note-test-aaaa')).task.status === 'plan_ready');
+  const plan = log().filter((c) => c.props.includes('steps')).pop()!;
+  assert.match(plan.prompt, /note when accepting this task — follow it:\nOffer next Tuesday/);
+  assert.equal(plan.args[plan.args.indexOf('--tools') + 1], '', 'planning gets no tools');
+
+  await api('/tasks/note-test-aaaa/plan', 'POST');
+  await waitFor(async () => (await api('/tasks/note-test-aaaa')).task.status === 'plan_ready' && log().filter((c) => c.props.includes('steps')).length > 1);
+  assert.match(log().filter((c) => c.props.includes('steps')).pop()!.prompt, /Offer next Tuesday/, 'the accept note is kept on later plans');
+});
+
 test('library skills can be installed, and exports leave out learned rules', async () => {
   const library = await api('/library');
   const starter = library.find((s: { slug: string }) => s.slug === 'writing-replies');

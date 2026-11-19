@@ -7,7 +7,7 @@ const args = process.argv.slice(2);
 const prompt = readFileSync(0, 'utf8');
 const schema = JSON.parse(args[args.indexOf('--json-schema') + 1] || '{}');
 const props = Object.keys(schema.properties ?? {});
-if (process.env.FAKE_CLAUDE_LOG) appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ args, props }) + '\n');
+if (process.env.FAKE_CLAUDE_LOG) appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ args, props, prompt }) + '\n');
 
 let out;
 if (props.includes('decisions')) {

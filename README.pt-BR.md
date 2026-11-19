@@ -166,7 +166,7 @@ Os logs ficam em `~/unchore/server.log`.
 |---|---|
 | **Sync** | Cada fonte sincroniza no seu próprio intervalo. O WhatsApp lê as conversas diretas pela API do uazapi (grupos vêm desligados porque fazem muito barulho). Gmail, Slack e Calendar são lidos pelo `claude -p` usando só as ferramentas MCP daquela fonte. O LinkedIn é lido pelo Claude in Chrome. |
 | **Extract** | As mensagens novas e a conversa delas vão para o Claude junto com a skill **What counts as a task**. Ele cria tarefas, junta mensagens novas a uma tarefa aberta da mesma conversa e anota por que ignorou o resto. |
-| **Plan** | Quando você aceita uma tarefa, o Claude escreve um plano seguindo as suas skills. O que falta fica como `[campo]` e aparece em **Needs you**. |
+| **Plan** | Quando você aceita uma tarefa (se quiser, com um comentário para o Claude), o Claude escreve um plano seguindo as suas skills. O que falta fica como `[campo]` e aparece em **Needs you**. |
 | **Approve & send** | A resposta sai na conversa original: WhatsApp pelo uazapi, Slack pelo MCP, LinkedIn pelo Chrome. O conector do Gmail no claude.ai só cria rascunhos, então a resposta do Gmail fica salva como rascunho na conversa para você enviar. |
 | **Request changes** | O Claude refaz o plano com as suas notas. Você também pode salvar a nota na skill que ele usou. |
 | **Take over** | O Unchore grava `~/unchore/tasks/<id-da-tarefa>/TASK.md` com a conversa, o plano e as suas skills. Claude Code e Codex abrem no Terminal nessa pasta; para Claude e ChatGPT, o contexto é copiado e o site abre. Quando terminar, rode `npx unchore done <id-da-tarefa> --note "o que eu fiz"`. |
@@ -190,7 +190,9 @@ LinkedIn é uma execução do Claude, então intervalos curtos gastam seus limit
 semanais. Se bater no limite, sincronize com menos frequência: a cada 15–30 minutos é suficiente
 para e-mail. O WhatsApp sincroniza pelo uazapi e só chama o Claude quando chegam mensagens novas.
 
-Para escolher o modelo, defina `UNCHORE_MODEL` no `.env` (padrão: `sonnet`).
+Para escolher o modelo, defina `UNCHORE_MODEL` no `.env` (padrão: `sonnet`). Títulos, resumos e
+planos das tarefas saem em inglês; para mudar, defina `UNCHORE_LANGUAGE` (por exemplo `Portuguese`).
+As respostas sempre usam o idioma da conversa.
 
 ## Limitações conhecidas
 
