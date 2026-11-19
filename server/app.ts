@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
-import { askAgent, chatHistory, clearChat, rescan } from './agent.ts';
+import { agentTakeover, askAgent, chatHistory, clearChat, rescan } from './agent.ts';
 import { config } from './config.ts';
 import { connectors, connectorState, syncConnector, updateConnector } from './connectors/index.ts';
 import type { SourceId } from './connectors/types.ts';
 import { all } from './db.ts';
-import { exportSkill, getSkill, installSkill, listLibrary, listSkills, saveSkill, skillHistory } from './skills.ts';
+import { appendRule, exportSkill, getSkill, installSkill, listLibrary, listSkills, saveSkill, skillHistory } from './skills.ts';
 import {
   acceptTask, approveTask, dismissTask, getTask, getThread, listTasks, markDone, planTask,
   reopenTask, requestChanges, resolveTaskId, runAction, skipAction, takeOver, taskEvents, undoDismiss, type TakeoverTool,
@@ -96,6 +96,11 @@ export function createApp() {
     const body = await c.req.json<{ name: string; when: string; body: string; reads?: string[]; actions?: string[] }>();
     return c.json(saveSkill(c.req.param('slug'), body));
   });
+  app.post('/api/skills/:slug/rules', async (c) => {
+    const { rule } = await c.req.json<{ rule: string }>();
+    if (!rule?.trim()) return c.json({ error: 'Write the rule first' }, 400);
+    return c.json(appendRule(c.req.param('slug'), rule, 'added from the command line'));
+  });
   app.get('/api/skills/:slug/export', (c) => c.json(exportSkill(c.req.param('slug'))));
   app.get('/api/library', (c) => c.json(listLibrary()));
   app.post('/api/library/:slug/install', (c) => c.json(installSkill(c.req.param('slug'))));
@@ -125,6 +130,10 @@ export function createApp() {
     return c.json([]);
   });
   app.post('/api/rescan', async (c) => c.json(await rescan()));
+  app.post('/api/agent/takeover', async (c) => {
+    const { tool } = await c.req.json<{ tool: TakeoverTool }>();
+    return c.json(agentTakeover(tool));
+  });
 
   // Built web app
   const dist = join(config.root, 'web', 'dist');

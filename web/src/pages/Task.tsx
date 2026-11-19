@@ -1,15 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api, SOURCE_NAMES, type TaskDetail, timeAgo } from '../api.ts';
 import { toast, usePoll } from '../App.tsx';
-import { Brand, type BrandId, Icon } from '../icons.tsx';
+import { AiMenu } from '../components/AiMenu.tsx';
+import { Brand, Icon } from '../icons.tsx';
 
-const TOOLS: Array<{ id: string; name: string; kind: string; brand: BrandId | null }> = [
-  { id: 'claude-code', name: 'Claude Code', kind: 'Opens Terminal with TASK.md', brand: 'claude' },
-  { id: 'codex', name: 'Codex', kind: 'Opens Terminal with TASK.md', brand: 'openai' },
-  { id: 'claude', name: 'Claude', kind: 'Copies the context, opens claude.ai', brand: 'claude' },
-  { id: 'chatgpt', name: 'ChatGPT', kind: 'Copies the context, opens chatgpt.com', brand: 'openai' },
-  { id: 'self', name: 'Do it myself', kind: 'Saves TASK.md, no AI', brand: null },
-];
 
 const STATUS: Record<string, [string, string]> = {
   suggested: ['New · not accepted yet', 'violet'],
@@ -131,46 +125,6 @@ function History({ data }: { data: TaskDetail }) {
   );
 }
 
-function TakeOverMenu({ uid, onDone }: { uid: string; onDone: (r: { name: string; command: string | null; file: string }) => void }) {
-  const [open, setOpen] = useState(false);
-  const pick = async (tool: (typeof TOOLS)[number]) => {
-    setOpen(false);
-    try {
-      const r = await api.takeover(uid, tool.id);
-      if (r.openUrl) {
-        await navigator.clipboard.writeText(r.markdown).catch(() => undefined);
-        window.open(r.openUrl, '_blank', 'noopener');
-        toast(`Context copied. Paste it into a new ${tool.name} chat.`);
-      }
-      onDone({ name: tool.name, command: r.command, file: r.file });
-    } catch (e) {
-      toast((e as Error).message);
-    }
-  };
-  return (
-    <div className="menu-wrap" style={{ flex: '0 0 auto' }}>
-      <button type="button" className="btn ai" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} style={{ minHeight: 48 }}>
-        {Icon.sparkle()}Take over with AI
-        <span style={{ display: 'inline-flex' }}>
-          <span style={{ width: 22, height: 22, borderRadius: 99, background: '#fff', border: '1px solid #e9e2fb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Brand id="claude" size={12} /></span>
-          <span style={{ width: 22, height: 22, marginLeft: -6, borderRadius: 99, background: '#fff', border: '1px solid #e9e2fb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Brand id="openai" size={12} /></span>
-        </span>
-        {Icon.chevron()}
-      </button>
-      {open && (
-        <div className="menu" role="menu" aria-label="Take over in">
-          <div className="menu-head"><strong style={{ display: 'block', fontSize: 13 }}>Continue with your AI</strong>It opens with the conversation, your skills and Claude's plan.</div>
-          {TOOLS.map((t) => (
-            <button key={t.id} type="button" role="menuitem" onClick={() => pick(t)}>
-              <span className="ic">{t.brand ? <Brand id={t.brand} size={16} /> : Icon.person()}</span>
-              <span><span style={{ display: 'block', fontWeight: 600 }}>{t.name}</span><span className="sub">{t.kind}</span></span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
   const { task } = data;
@@ -335,7 +289,14 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
             </button>
           )}
           {canReview && <button type="button" className="btn" disabled={busy} onClick={() => setFeedbackOpen(!feedbackOpen)}>Request changes</button>}
-          <TakeOverMenu uid={task.uid} onDone={(r) => { setTakeover(r); reload(); }} />
+          <AiMenu
+            label="Take over with AI"
+            heading="Continue with your AI"
+            sub="It opens with the conversation, your skills and Claude's plan."
+            withSelf
+            onPick={(tool) => api.takeover(task.uid, tool)}
+            onDone={(r) => { setTakeover(r); reload(); }}
+          />
           {status === 'done' ? (
             <button type="button" className="btn" disabled={busy} onClick={() => act(() => api.reopen(task.uid))}>{Icon.refresh()}Reopen</button>
           ) : (

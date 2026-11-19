@@ -19,6 +19,8 @@ npm test             # end-to-end flow with a fake Claude CLI and a fake uazapi 
 npm run typecheck
 npx unchore done <task-id> --note "…"   # mark a task done (server must be running)
 npx unchore sync <connector>            # run one sync now
+npx unchore rule "…"                    # add a rule to "What counts as a task"
+npx unchore rescan                      # re-check the last 24h of skipped messages
 ```
 
 ## Helping someone install Unchore

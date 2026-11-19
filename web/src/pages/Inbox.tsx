@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ChatMessage, type SourceId, SOURCE_NAMES, type TaskListItem, type ThreadMessage, timeAgo } from '../api.ts';
 import { toast, usePoll } from '../App.tsx';
+import { AiMenu } from '../components/AiMenu.tsx';
 import { Brand, Icon } from '../icons.tsx';
 
 const REASONS = ['Just FYI', 'Automated / newsletter', 'Already handled', 'Not meant for me', 'Personal, keep out'];
@@ -55,9 +56,14 @@ export function Inbox({ onCount }: { onCount: (n: number) => void }) {
           <span className="sr-only">Search</span>
           <input type="search" placeholder="Search tasks and people…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        <button type="button" className="btn ai" aria-expanded={chatOpen} onClick={() => { setChatTask(undefined); setChatOpen(!chatOpen); }}>
-          {Icon.sparkle()}Ask the Inbox agent
-        </button>
+        <AiMenu
+          label="Ask the Inbox agent"
+          heading="Talk to the Inbox agent"
+          sub="It knows your rules, open tasks and the last day's decisions."
+          down
+          here={{ name: 'Here in Unchore', kind: 'Chat in the side panel', onPick: () => { setChatTask(undefined); setChatOpen(true); } }}
+          onPick={(tool) => api.agentTakeover(tool)}
+        />
       </header>
 
       <div role="group" aria-label="Filter by source" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

@@ -409,17 +409,21 @@ export function takeOver(id: number, tool: TakeoverTool) {
   writeFileSync(file, markdown);
   touch(id, 'taken_over');
   logEvent('taken_over', { tool, file }, id);
+  return { file, dir, markdown, ...openIn(tool, dir, 'Read TASK.md and help me finish this task') };
+}
+
+/** Opens Claude Code or Codex in Terminal in a folder (macOS), or says which site to open. */
+export function openIn(tool: TakeoverTool, dir: string, prompt: string) {
   const quoted = `'${dir.replace(/'/g, `'\\''`)}'`;
-  const prompt = '"Read TASK.md and help me finish this task"';
   let command: string | null = null;
-  if (tool === 'claude-code') command = `cd ${quoted} && claude ${prompt}`;
-  if (tool === 'codex') command = `cd ${quoted} && codex ${prompt}`;
+  if (tool === 'claude-code') command = `cd ${quoted} && claude ${JSON.stringify(prompt)}`;
+  if (tool === 'codex') command = `cd ${quoted} && codex ${JSON.stringify(prompt)}`;
   if (command && process.platform === 'darwin' && !process.env.UNCHORE_NO_TERMINAL) {
     const script = `tell application "Terminal"\n activate\n do script ${JSON.stringify(command)}\nend tell`;
     execFile('osascript', ['-e', script], (err) => err && console.error('[takeover] could not open Terminal:', err.message));
   }
   const openUrl = tool === 'claude' ? 'https://claude.ai/new' : tool === 'chatgpt' ? 'https://chatgpt.com/' : null;
-  return { file, dir, command, markdown, openUrl };
+  return { command, openUrl };
 }
 
 export function taskEvents(id: number) {
