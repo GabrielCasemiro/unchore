@@ -190,7 +190,7 @@ function Details({ task, onWhy, onChanged, onLearned }: {
       {isNew ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <label className="field">
-            Note for Claude (optional)
+            Note (optional)
             <input className="input" value={acceptNote} onChange={(e) => setAcceptNote(e.target.value)} placeholder="e.g. offer next Tuesday, and keep it short" />
           </label>
           <div className="actions">

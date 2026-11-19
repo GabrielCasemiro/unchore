@@ -163,7 +163,7 @@ Logs go to `~/unchore/server.log`.
 |---|---|
 | **Sync** | Each source syncs on its own schedule. WhatsApp reads direct chats through the uazapi API (groups are off by default because they get noisy). Gmail, Slack and Calendar are read by `claude -p` using only that source's MCP tools. LinkedIn is read through Claude in Chrome. |
 | **Extract** | New messages and their thread go to Claude with the skill **What counts as a task**. It creates tasks, adds new messages to an open task in the same thread, and records why it skipped everything else. |
-| **Plan** | When you accept a task (optionally with a note for Claude), Claude writes a plan following your skills. Missing facts stay as `[placeholders]` and are listed under **Needs you**. You can also pick a skill and run it on the task: it only writes a new plan, with no tools, and nothing is sent until you approve. |
+| **Plan** | When you accept a task (optionally with a note for Claude), Claude writes a plan following your skills. Missing facts stay as `[placeholders]` and are listed under **Needs you**. |
 | **Approve & send** | The reply goes out in the original conversation: WhatsApp through uazapi, Slack through MCP, LinkedIn through Chrome. The claude.ai Gmail connector can only draft, so Gmail replies are saved as drafts in the thread for you to send. |
 | **Request changes** | Claude re-plans with your notes. You can also save the note to the skill it used. |
 | **Take over** | Unchore writes `~/unchore/tasks/<task-id>/TASK.md` with the conversation, the plan and your skills. Claude Code and Codex open in Terminal in that folder; for Claude and ChatGPT, the context is copied and the site opens. When you're done, run `npx unchore done <task-id> --note "what I did"`. |

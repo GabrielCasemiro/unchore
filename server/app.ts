@@ -40,11 +40,8 @@ export function createApp() {
     acceptTask(resolveTaskId(c.req.param('id')), note);
     return c.json({ ok: true });
   });
-  app.post('/api/tasks/:id/plan', async (c) => {
-    const { skill } = await c.req.json<{ skill?: string }>().catch(() => ({ skill: undefined }));
-    const id = resolveTaskId(c.req.param('id'));
-    if (skill && !getSkill(skill)) return c.json({ error: `No skill called ${skill}` }, 400);
-    void planTask(id, { skill });
+  app.post('/api/tasks/:id/plan', (c) => {
+    void planTask(resolveTaskId(c.req.param('id')));
     return c.json({ ok: true });
   });
   app.post('/api/tasks/:id/dismiss', async (c) => {

@@ -102,8 +102,6 @@ const planSchema = {
 export interface PlanOptions {
   /** Changes the user asked for on the previous plan. */
   feedback?: string;
-  /** A skill the user picked to plan with. */
-  skill?: string;
 }
 
 /** The note the user added when accepting, kept for every later plan of the task. */
@@ -114,11 +112,9 @@ function acceptNote(id: number): string | null {
 }
 
 // Planning never acts: the run gets no tools, and anything it proposes waits for the user's approval.
-export async function planTask(id: number, { feedback, skill: skillSlug }: PlanOptions = {}) {
+export async function planTask(id: number, { feedback }: PlanOptions = {}) {
   const task = getTask(id);
   if (!task) throw new Error('Task not found');
-  const picked = skillSlug ? getSkill(skillSlug) : null;
-  const skill = picked && !picked.system ? picked : null;
   const note = acceptNote(id);
   touch(id, 'planning');
   run('UPDATE tasks SET plan_error = NULL WHERE id = ?', id);
@@ -134,11 +130,11 @@ What is asked: ${task.summary ?? ''}
 Source: ${connectors[task.source].name}${task.channel ? ` · ${task.channel}` : ''} · requester: ${task.requester ?? 'unknown'} · due: ${task.due ?? 'not set'}${task.source === 'calendar' ? '\nThis is a calendar event: plan how to prepare for it (agenda, questions, materials) and set reply to null.' : ''}
 
 ${untrusted('conversation', thread.map((m) => `${m.received_at} ${m.is_from_me ? 'ME' : m.from_name}: ${m.text}`).join('\n'))}
-${note ? `\nThe user's note when accepting this task — follow it:\n${note}\n` : ''}${skill ? `\nThe user asked you to plan this task with the skill "${skill.name}" (slug: ${skill.slug}). Follow it closely and set skill_slug to "${skill.slug}".\n` : ''}${previous && feedback ? `\nYour previous plan:\n${JSON.stringify(previous, null, 2)}\n\nThe user asked for these changes — apply them:\n${feedback}` : ''}`,
+${note ? `\nThe user's note when accepting this task — follow it:\n${note}\n` : ''}${previous && feedback ? `\nYour previous plan:\n${JSON.stringify(previous, null, 2)}\n\nThe user asked for these changes — apply them:\n${feedback}` : ''}`,
     });
     run('UPDATE tasks SET plan = ? WHERE id = ?', JSON.stringify(plan), id);
     touch(id, 'plan_ready');
-    logEvent('plan_ready', { feedback: feedback ?? null, skill: skill?.slug ?? null }, id);
+    logEvent('plan_ready', { feedback: feedback ?? null }, id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     run('UPDATE tasks SET plan_error = ? WHERE id = ?', message, id);

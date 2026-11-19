@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type Skill, SOURCE_NAMES, type TaskDetail, timeAgo } from '../api.ts';
+import { api, SOURCE_NAMES, type TaskDetail, timeAgo } from '../api.ts';
 import { toast, usePoll } from '../App.tsx';
 import { Brand, type BrandId, Icon } from '../icons.tsx';
 
@@ -112,7 +112,6 @@ function History({ data }: { data: TaskDetail }) {
             {typeof e.detail?.error === 'string' && ` · ${e.detail.error}`}
             {typeof e.detail?.tool === 'string' && ` · ${e.detail.tool}`}
             {typeof e.detail?.note === 'string' && e.detail.note && ` · “${e.detail.note}”`}
-            {typeof e.detail?.skill === 'string' && ` · skill ${e.detail.skill}`}
           </li>
         ))}
       </ul>
@@ -171,10 +170,7 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
   const [busy, setBusy] = useState(false);
   const [takeover, setTakeover] = useState<{ name: string; command: string | null; file: string } | null>(null);
   const [acceptNote, setAcceptNote] = useState('');
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [skill, setSkill] = useState('');
   useEffect(() => setReply(plan?.reply ?? ''), [plan?.reply]);
-  useEffect(() => { api.skills().then((all) => setSkills(all.filter((s) => !s.system))).catch(() => undefined); }, []);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -214,7 +210,7 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
       {status === 'suggested' && (
         <>
           <label className="field">
-            Note for Claude (optional)
+            Note (optional)
             <input className="input" value={acceptNote} onChange={(e) => setAcceptNote(e.target.value)} placeholder="e.g. offer next Tuesday, and keep it short" />
           </label>
           <div className="actions">
@@ -226,20 +222,6 @@ function PlanPanel({ data, reload }: { data: TaskDetail; reload: () => void }) {
       {task.plan_error && <div className="notice err">{task.plan_error}</div>}
       {status === 'accepted' && !plan && (
         <button type="button" className="btn primary" disabled={busy} onClick={() => act(() => api.replan(task.uid))}>Make a plan</button>
-      )}
-
-      {!['suggested', 'planning', 'executing', 'done'].includes(status) && !!skills.length && (
-        <div className="skill-run">
-          <label className="field" style={{ flex: '1 1 220px' }}>
-            Plan with a skill
-            <select className="input" value={skill} onChange={(e) => setSkill(e.target.value)}>
-              <option value="">Choose a skill…</option>
-              {skills.map((s) => <option key={s.slug} value={s.slug}>{s.name}</option>)}
-            </select>
-          </label>
-          <button type="button" className="btn small" disabled={busy || !skill} onClick={() => act(() => api.replan(task.uid, skill))}>Run skill</button>
-          <span className="sub" style={{ flex: '1 1 100%', fontSize: 12 }}>Plan mode: Claude only writes a new plan. It can't use tools, and nothing is sent until you approve.</span>
-        </div>
       )}
 
       {plan && (

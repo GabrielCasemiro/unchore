@@ -180,7 +180,7 @@ test('skills can be edited and keep a version history', async () => {
   assert.equal((await api('/skills/scheduling')).history.length, 2);
 });
 
-test('accepting with a note and planning with a picked skill reach the plan prompt; titles follow the language setting', async () => {
+test('the note from accepting reaches every plan of the task; titles follow the language setting', async () => {
   const log = () => readFileSync(join(home, 'claude.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { args: string[]; props: string[]; prompt: string });
   const extract = log().find((c) => c.props.includes('decisions'))!;
   assert.match(extract.args[extract.args.indexOf('--json-schema') + 1], /Imperative task title in English/);
@@ -193,14 +193,9 @@ test('accepting with a note and planning with a picked skill reach the plan prom
   assert.match(plan.prompt, /note when accepting this task — follow it:\nOffer next Tuesday/);
   assert.equal(plan.args[plan.args.indexOf('--tools') + 1], '', 'planning gets no tools');
 
-  await api('/tasks/note-test-aaaa/plan', 'POST', { skill: 'scheduling' });
+  await api('/tasks/note-test-aaaa/plan', 'POST');
   await waitFor(async () => (await api('/tasks/note-test-aaaa')).task.status === 'plan_ready' && log().filter((c) => c.props.includes('steps')).length > 1);
-  const withSkill = log().filter((c) => c.props.includes('steps')).pop()!;
-  assert.match(withSkill.prompt, /plan this task with the skill "Scheduling" \(slug: scheduling\)/);
-  assert.match(withSkill.prompt, /Offer next Tuesday/, 'the accept note is kept on later plans');
-
-  const bad = await app.fetch(new Request('http://localhost/api/tasks/note-test-aaaa/plan', { method: 'POST', body: JSON.stringify({ skill: 'nope' }) }));
-  assert.equal(bad.status, 400);
+  assert.match(log().filter((c) => c.props.includes('steps')).pop()!.prompt, /Offer next Tuesday/, 'the accept note is kept on later plans');
 });
 
 test('library skills can be installed, and exports leave out learned rules', async () => {
