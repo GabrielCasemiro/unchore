@@ -88,8 +88,11 @@ export function listTasks(includeDone: boolean) {
        (SELECT s.received_at FROM signals s JOIN task_signals ts ON ts.signal_id = s.id WHERE ts.task_id = t.id ORDER BY s.received_at DESC LIMIT 1) AS last_at
      FROM tasks t
      WHERE t.status NOT IN ('dismissed'${includeDone ? '' : ",'done'"})
-     ORDER BY CASE t.status WHEN 'suggested' THEN 0 WHEN 'done' THEN 2 ELSE 1 END,
-       -- calendar tasks sort by when they were found, not by the (future) event date
+     ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END,
+       -- open tasks by due date, soonest (or overdue) on top; undated ones after
+       CASE WHEN t.status = 'done' OR t.due IS NULL THEN 1 ELSE 0 END,
+       CASE WHEN t.status = 'done' THEN NULL ELSE t.due END ASC,
+       CASE WHEN t.status = 'done' OR t.due IS NULL THEN NULL ELSE COALESCE(last_at, t.created_at) END ASC,
        CASE WHEN t.source = 'calendar' THEN t.created_at ELSE COALESCE(last_at, t.created_at) END DESC
      LIMIT 300`,
   );

@@ -390,3 +390,12 @@ test('calendar tasks whose event is over leave the Inbox; "Already handled" lear
   assert.equal(r.rule, null);
   assert.equal(readFileSync(join(home, 'skills', 'what-counts-as-a-task.md'), 'utf8'), before);
 });
+
+test('open tasks are listed by due date, soonest first, whatever their status', async () => {
+  const { run } = await import('../server/db.ts');
+  run(`INSERT INTO tasks (uid, title, source, thread_id, status, due) VALUES ('order-late-aaaa', 'Late', 'whatsapp', 'o1', 'suggested', '2030-01-09')`);
+  run(`INSERT INTO tasks (uid, title, source, thread_id, status, due) VALUES ('order-soon-aaaa', 'Soon', 'whatsapp', 'o2', 'plan_ready', '2030-01-02')`);
+  run(`INSERT INTO tasks (uid, title, source, thread_id, status) VALUES ('order-none-aaaa', 'No date', 'whatsapp', 'o3', 'suggested')`);
+  const uids = (await api('/tasks')).map((t: { uid: string }) => t.uid).filter((u: string | null) => u?.startsWith('order-'));
+  assert.deepEqual(uids, ['order-soon-aaaa', 'order-late-aaaa', 'order-none-aaaa']);
+});
