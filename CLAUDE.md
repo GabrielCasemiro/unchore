@@ -172,4 +172,8 @@ Adding a connector is described in `CONTRIBUTING.md`. The source id also has to 
 - Match the surrounding code: small functions, few comments, TypeScript run directly with `tsx`,
   no new dependencies without a good reason.
 - UI copy is short and plain, written from the user's side ("Sync now", "Not a task").
+- Ship changes as a focused pull request (open an issue first for anything bigger than a bug fix);
+  PRs are squash-merged, so the title becomes the commit message. See `CONTRIBUTING.md`.
+- If Unchore runs at login, restart it to pick up changes:
+  `launchctl kickstart -k gui/$(id -u)/com.unchore.server`.
 - Keep the README (English) and `README.pt-BR.md` in sync when behavior changes.
